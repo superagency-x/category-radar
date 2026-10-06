@@ -111,6 +111,16 @@ table.matrix td:first-child { text-align: left; }
 .badge.blocked, .badge.error, .badge.disallowed { background: #fbe4e4; color: #a32b2b; }
 .up { color: var(--bad); } .down { color: var(--good); }
 .min { color: var(--good); font-weight: 700; } .max { color: var(--bad); font-weight: 700; }
+.legend-pills { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11.5px; }
+.pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-weight: 600; font-size: 11.5px; }
+.pill.win { background: #e8f5ee; color: #1b7a4c; }
+.pill.darl { background: #e6eefe; color: #2558c4; }
+.pill.gem { background: #fbf0dc; color: #8a5a00; }
+.pill.under { background: #fbe4e4; color: #a32b2b; }
+:root[data-theme="dark"] .pill.win, :root:not([data-theme="light"]) .pill.win { background: #133a25; color: #3ccf8e; }
+:root[data-theme="dark"] .pill.darl, :root:not([data-theme="light"]) .pill.darl { background: #1d2a45; color: #6d9bff; }
+:root[data-theme="dark"] .pill.gem, :root:not([data-theme="light"]) .pill.gem { background: #3c2d12; color: #f2b84b; }
+:root[data-theme="dark"] .pill.under, :root:not([data-theme="light"]) .pill.under { background: #3d1b1b; color: #ff6b6b; }
 .select { font-size: 13px; color: var(--ink-2); display: flex; gap: 8px; align-items: center; }
 select, input[type="search"] { font: 13px var(--font); padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); }
 input[type="search"] { min-width: 240px; }

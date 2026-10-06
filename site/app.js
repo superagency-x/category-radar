@@ -173,6 +173,51 @@
       label: mm, num: true, cls: () => "cell", get: (b) => idx[b][mm] ?? "", style: (b) => heatStyle(idx[b][mm], 40, 100, 200),
     }))], brands, { empty: "Brand price index needs ≥2 products per brand per market." });
 
+    // promotional intensity & UVP erosion
+    const promos = state.data.insights.promotions || {};
+    const pmkt = promos.markets?.[m] || { discounted_products: 0, avg_discount_pct: 0, brands: [] };
+    const pBrands = pmkt.brands || [];
+    chart("c-promos", {
+      type: "bar",
+      data: {
+        labels: pBrands.map((b) => b.brand),
+        datasets: [{
+          label: "Avg Discount from UVP (%)",
+          data: pBrands.map((b) => b.avg_discount_pct),
+          backgroundColor: pBrands.map((b) => brandColor(b.brand)),
+          borderRadius: 4,
+        }],
+      },
+      options: {
+        indexAxis: "y",
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (c) => `Avg discount: -${pct(c.raw)} (${pBrands[c.dataIndex].deal_count} deal(s), max -${pct(pBrands[c.dataIndex].max_discount_pct)})`,
+            },
+          },
+        },
+        scales: {
+          x: { beginAtZero: true, max: 70, ticks: { callback: (v) => `-${v}%` } },
+        },
+      },
+    });
+    $("#promo-note").textContent = pmkt.discounted_products > 0
+      ? `${pmkt.discounted_products} discounted products tracked in ${m}. Shelf price is on average ${pct(pmkt.avg_discount_pct)} below suggested retail price (UVP).`
+      : `No direct retailer UVP baseline captured for ${m} in current snapshot (available for DE via Otto / MediaMarkt).`;
+
+    const deals = (promos.top_deals || []).filter((d) => d.market === m);
+    const displayDeals = deals.length > 0 ? deals : (promos.top_deals || []);
+    table("#t-promos", [
+      { label: "Brand", get: (d) => d.brand },
+      { label: "Product", cls: () => "title", html: (d) => `<a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.title)}</a>` },
+      { label: "Channel", html: (d) => `<span class="badge">${esc(d.channel)}</span>` },
+      { label: "Shelf", num: true, get: (d) => eur(d.price_eur) },
+      { label: "UVP", num: true, get: (d) => eur(d.uvp_eur) },
+      { label: "Cut", num: true, html: (d) => `<span class="down">-${pct(d.discount_depth_pct)}</span>` },
+    ], displayDeals.slice(0, 20), { empty: "No promotional cuts tracked for this market." });
+
     table("#t-cross", [
       { label: "Model", cls: () => "title", get: (c) => c.title },
       ...markets.map((mm) => ({ label: mm, num: true, html: (c) => {
@@ -244,6 +289,80 @@
       data: { labels: tb, datasets: tiers.map((t) => ({ label: t, data: tb.map((b) => tm[b][t] || 0), backgroundColor: tierCol[t] || "#9aa3b2", borderRadius: 2 })) },
       options: { indexAxis: "y", plugins: { legend: { position: "bottom" } }, scales: { x: { stacked: true, ticks: { precision: 0 } }, y: { stacked: true } } },
     });
+
+    // editorial test scores vs consumer satisfaction
+    const ed = state.data.insights.editorial || {};
+    const testedItems = ed.items || [];
+    const quadConfig = [
+      { key: "Verified Winner", color: "#18a37a", label: "Verified Winner (≥75, ≥4.2★)" },
+      { key: "Consumer Darling", color: "#2f6fed", label: "Consumer Darling (<75, ≥4.2★)" },
+      { key: "Lab Winner / Hidden Gem", color: "#f2a516", label: "Lab Winner / Hidden Gem (≥75, <4.2★)" },
+      { key: "Underperformer", color: "#e8573f", label: "Underperformer (<75, <4.2★)" },
+    ];
+    chart("c-editorial", {
+      type: "bubble",
+      data: {
+        datasets: quadConfig.map((q) => {
+          const inQuad = testedItems.filter((it) => it.quadrant === q.key);
+          return {
+            label: q.label,
+            data: inQuad.map((it) => ({
+              x: it.user_rating,
+              y: it.test_score,
+              r: Math.max(5, Math.min(16, Math.sqrt(it.rating_count || 1) * 1.5)),
+              item: it,
+            })),
+            backgroundColor: alpha(q.color, 0.65),
+            borderColor: q.color,
+            borderWidth: 1.5,
+          };
+        }),
+      },
+      options: {
+        plugins: {
+          legend: { position: "bottom" },
+          tooltip: {
+            callbacks: {
+              label: (c) => {
+                const it = c.raw.item;
+                return [
+                  `${it.brand}: ${it.title.slice(0, 42)}`,
+                  `Test Grade: ${num(it.test_score, 0)}/100 · Rating: ${num(it.user_rating, 2)}★ (${num(it.rating_count)} rev)`,
+                  `Quadrant: ${it.quadrant} · Price: ${eur(it.price_eur)} (${it.market})`,
+                ];
+              },
+            },
+          },
+        },
+        scales: {
+          x: {
+            title: { display: true, text: "Customer Satisfaction (Stars: 1.0 – 5.0)" },
+            suggestedMin: 3.8,
+            suggestedMax: 5.05,
+          },
+          y: {
+            title: { display: true, text: "Certified Editorial Test Score (0 – 100)" },
+            suggestedMin: 60,
+            suggestedMax: 100,
+          },
+        },
+      },
+    });
+
+    const quadPill = (q) => {
+      const cls = q === "Verified Winner" ? "win" : q === "Consumer Darling" ? "darl" : q === "Lab Winner / Hidden Gem" ? "gem" : "under";
+      return `<span class="pill ${cls}">${esc(q)}</span>`;
+    };
+
+    table("#t-editorial", [
+      { label: "Brand", get: (r) => r.brand },
+      { label: "Model / Product", cls: () => "title", html: (r) => `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>` },
+      { label: "Market", get: (r) => r.market },
+      { label: "Test Score", num: true, html: (r) => `<b>${num(r.test_score, 0)}</b>` },
+      { label: "Customer Rating", num: true, get: (r) => `${num(r.user_rating, 2)}★ (${r.rating_count || 0})` },
+      { label: "Quadrant", html: (r) => quadPill(r.quadrant) },
+      { label: "Shelf Price", num: true, get: (r) => eur(r.price_eur) },
+    ], testedItems, { empty: "No certified editorial test scores found in current snapshot." });
   }
   const sum = (a) => a.reduce((s, x) => s + x, 0);
 
@@ -275,6 +394,17 @@
       ...ms.map((x) => ({ label: x, html: (f) => f.markets.includes(x) ? `<span class="dot ok" style="background:${brandColor(f.brand)}"></span>` : "" })),
       { label: "Type", html: (f) => `<span class="badge">${esc(f.type)}</span>` },
     ], fp);
+
+    const omni = state.data.insights.omnichannel?.channels || [];
+    table("#t-omnichannel", [
+      { label: "Channel", get: (c) => c.channel },
+      { label: "Market", get: (c) => `${c.market} · ${marketName(c.market)}` },
+      { label: "Channel Type", html: (c) => `<span class="badge">${esc(c.channel_type === "retailer" ? "Direct Retailer" : "Price Comparison")}</span>` },
+      { label: "Listings", num: true, get: (c) => c.listings },
+      { label: "Median Price", num: true, get: (c) => eur(c.median_price_eur) },
+      { label: "P10–P90 Price Range", num: true, get: (c) => c.p10_eur != null && c.p90_eur != null ? `€${Math.round(c.p10_eur)}–€${Math.round(c.p90_eur)}` : "–" },
+      { label: "Active Brands", num: true, get: (c) => c.brands_count },
+    ], omni, { empty: "No omnichannel channel data available." });
 
     table("#t-brands", [
       { label: "Brand", html: (b) => `<span class="dot" style="background:${brandColor(b.brand)};margin:0 6px 0 0"></span>${esc(b.brand)}` },

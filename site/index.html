@@ -69,6 +69,17 @@
         <h2>Brand price index <span class="hint">brand median ÷ market median × 100; 100 = market median</span></h2>
         <div class="table-wrap"><table class="heat" id="t-index"></table></div>
       </article>
+      <div class="grid two">
+        <article class="card">
+          <h2>Promotional intensity &amp; UVP erosion · <span class="mk"></span> <span class="hint">average discount depth below MSRP</span></h2>
+          <div class="chart tall"><canvas id="c-promos"></canvas></div>
+          <p class="note" id="promo-note"></p>
+        </article>
+        <article class="card">
+          <h2>Deepest retail cuts &amp; promo deals · <span class="mk"></span> <span class="hint">shelf price vs. UVP</span></h2>
+          <div class="table-wrap scroll"><table id="t-promos"></table></div>
+        </article>
+      </div>
       <article class="card">
         <h2>Same model, different price <span class="hint">identical models in 3+ markets, EUR at ECB rates</span></h2>
         <div class="table-wrap"><table id="t-cross"></table></div>
@@ -102,6 +113,23 @@
         <div class="chart xl"><canvas id="c-map"></canvas></div>
         <p class="note">X axis: price index (100 = market median). Top-right is premium and well rated. Bottom-right is premium priced without the proof to back it.</p>
       </article>
+      <article class="card">
+        <div class="card-head">
+          <h2>Editorial test scores vs. consumer satisfaction <span class="hint">Stiftung Warentest &amp; Testberichte grades vs. user star ratings</span></h2>
+          <div class="legend-pills">
+            <span class="pill win">Verified Winners (&ge; 75 &amp; &ge; 4.2★)</span>
+            <span class="pill darl">Consumer Darlings (&lt; 75 &amp; &ge; 4.2★)</span>
+            <span class="pill gem">Lab Winners / Hidden Gems (&ge; 75 &amp; &lt; 4.2★)</span>
+            <span class="pill under">Underperformers (&lt; 75 &amp; &lt; 4.2★)</span>
+          </div>
+        </div>
+        <div class="chart xl"><canvas id="c-editorial"></canvas></div>
+        <p class="note">4-Quadrant matrix: Certified lab testing score (0–100) vs. customer stars (1.0–5.0). Bubble size reflects review volume.</p>
+      </article>
+      <article class="card">
+        <h2>Certified editorial test models <span class="hint">Stiftung Warentest / Testberichte meta-scores and market pricing</span></h2>
+        <div class="table-wrap scroll"><table id="t-editorial"></table></div>
+      </article>
       <div class="grid two">
         <article class="card">
           <h2>Claim ownership · <span class="mk"></span> <span class="hint">% of each brand's range carrying the claim</span></h2>
@@ -130,6 +158,10 @@
           <div class="table-wrap scroll"><table class="matrix" id="t-footprint"></table></div>
         </article>
       </div>
+      <article class="card">
+        <h2>Omnichannel channel comparison <span class="hint">Price comparison engines vs. direct retailers (MediaMarkt, Otto, Alza)</span></h2>
+        <div class="table-wrap"><table id="t-omnichannel"></table></div>
+      </article>
       <article class="card">
         <h2>Brand scorecard · <span class="mk"></span></h2>
         <div class="table-wrap"><table id="t-brands"></table></div>

@@ -48,7 +48,7 @@ def build_bundle(cfg: CategoryConfig, store: Store, run_id: Optional[str] = None
         "listings": [
             {k: l[k] for k in ("market", "channel", "rank", "brand", "title", "url", "price_local", "currency",
                                "price_eur", "offers", "rating", "rating_count", "sponsored", "capacity_l",
-                               "power_w", "dual_zone", "claims", "model_key")}
+                               "power_w", "dual_zone", "claims", "model_key", "extra")}
             for l in latest
         ],
     }
@@ -93,6 +93,9 @@ def build_executive_brief_markdown(bundle: dict[str, Any]) -> str:
     ins = bundle["insights"]
     p_mkt = ins["price"]["markets"]
     l_mkt = ins["landscape"]["markets"]
+    promos = ins.get("promotions", {})
+    editorial = ins.get("editorial", {})
+    omnichannel = ins.get("omnichannel", {})
     date = meta["snapshot_date"]
     cat_name = meta["category"]["name"]
     counts = meta["counts"]
@@ -118,7 +121,7 @@ def build_executive_brief_markdown(bundle: dict[str, Any]) -> str:
         "",
         "---",
         "",
-        "## 2. Price Architecture & Cross-Border Arbitrage Analysis",
+        "## 2. Price Architecture & Promotional Intensity",
         "",
         "### Market Price Benchmark (EUR Harmonized)",
         "| Market | Currency | Listings | Median (Local) | Median (EUR) | P10–P90 Band (EUR) | Top-20 Median |",
@@ -134,6 +137,26 @@ def build_executive_brief_markdown(bundle: dict[str, Any]) -> str:
         p10_p90 = f"€{info.get('p10_eur', 0):.0f} – €{info.get('p90_eur', 0):.0f}"
         top_e = f"€{info.get('top20_median_eur', 0):.0f}" if info.get('top20_median_eur') else "–"
         lines.append(f"| {m_name} ({m}) | {cur} | {n} | {med_l} | {med_e} | {p10_p90} | {top_e} |")
+
+    lines.extend([
+        "",
+        "### Promotional Intensity: UVP (MSRP) vs. Shelf Price & Discount Depth",
+        "| Market / Retailer | Tracked Deals | Avg Discount % | Deepest Discounting Brand | Deepest Cut Deal |",
+        "|---|---|---|---|---|",
+    ])
+
+    promo_deals = promos.get("top_deals", [])
+    p_mkts = promos.get("markets", {})
+    if p_mkts:
+        for m, pd in p_mkts.items():
+            if pd.get("discounted_products", 0) > 0:
+                m_name = markets.get(m, {}).get("name", m)
+                top_b = pd["brands"][0] if pd["brands"] else {"brand": "–", "avg_discount_pct": 0}
+                deepest = next((d for d in promo_deals if d["market"] == m), None)
+                deep_txt = f"{deepest['brand']} (-{deepest['discount_depth_pct']}%)" if deepest else "–"
+                lines.append(f"| {m_name} | {pd['discounted_products']} items | -{pd['avg_discount_pct']}% | {top_b['brand']} (-{top_b['avg_discount_pct']}%) | {deep_txt} |")
+    if not promo_deals:
+        lines.append("| Direct Retail Channels | – | – | UVP tracked across Otto / MediaMarkt | – |")
 
     lines.extend([
         "",
@@ -187,6 +210,20 @@ def build_executive_brief_markdown(bundle: dict[str, Any]) -> str:
     lines.append(f"- **Pan-Regional Giants (5–6 Markets)**: {', '.join(f['brand'] for f in pan) if pan else 'None'}")
     lines.append(f"- **Multi-Market Challengers (2–4 Markets)**: {', '.join(f['brand'] for f in multi[:10]) if multi else 'None'}")
 
+    omni_channels = omnichannel.get("channels", [])
+    if omni_channels:
+        lines.extend([
+            "",
+            "### Omnichannel Channel Footprint: Comparison Engines vs. Direct Retailers",
+            "| Channel | Market | Channel Type | Listings | Median (EUR) | P10–P90 Corridor | Brands |",
+            "|---|---|---|---|---|---|---|",
+        ])
+        for oc in omni_channels:
+            c_type = "Direct Retailer" if oc["channel_type"] == "retailer" else "Price Comparison"
+            p_band = f"€{oc['p10_eur']:.0f}–€{oc['p90_eur']:.0f}" if oc.get("p10_eur") and oc.get("p90_eur") else "–"
+            med = f"€{oc['median_price_eur']:.0f}" if oc.get("median_price_eur") else "–"
+            lines.append(f"| `{oc['channel']}` | {oc['market']} | {c_type} | {oc['listings']} | {med} | {p_band} | {oc['brands_count']} |")
+
     lines.extend([
         "",
         "---",
@@ -210,6 +247,22 @@ def build_executive_brief_markdown(bundle: dict[str, Any]) -> str:
         win = f"{cl.get('window', 0):.0f}%" if b in pos_claims else "–"
         app = f"{cl.get('app', 0):.0f}%" if b in pos_claims else "–"
         lines.append(f"| **{b}** | {idx} | {dual} | {steam} | {win} | {app} |")
+
+    ed_items = editorial.get("items", [])
+    if ed_items:
+        q_counts = editorial.get("quadrant_counts", {})
+        q_summary = ", ".join(f"**{k}**: {v}" for k, v in sorted(q_counts.items()))
+        lines.extend([
+            "",
+            "### Editorial Quality Validation (Stiftung Warentest / Testberichte Meta-Scores vs. Consumer Stars)",
+            f"*Tested Models: {editorial.get('count', 0)} with verified test grades. Portfolio breakdown: {q_summary}*",
+            "",
+            "| Brand | Model / Title | Test Score (0–100) | User Rating | Quadrant | Shelf Price |",
+            "|---|---|---|---|---|---|",
+        ])
+        for it in ed_items[:8]:
+            p_str = f"€{it['price_eur']:.0f}" if it.get("price_eur") else "–"
+            lines.append(f"| **{it['brand']}** | {it['title'][:45]} | **{it['test_score']:.0f}** | {it['user_rating']}★ ({it.get('rating_count') or 0}) | `{it['quadrant']}` | {p_str} |")
 
     lines.extend([
         "",

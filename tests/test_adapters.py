@@ -99,3 +99,17 @@ def test_otto():
     assert a.extra["discount_depth_pct"] == 37.1
     assert a.rating_count == 35
     assert a.extra["badge_popular"] is True
+
+
+def test_mediamarkt():
+    items = parse("mediamarkt", "mediamarkt.html", "DE", "EUR")
+    assert len(items) >= 10
+    a = items[0]
+    assert "NINJA" in a.title
+    assert a.price == 159.0
+    assert a.extra["uvp_eur"] == 269.99
+    assert a.extra["discount_depth_pct"] == 41.1
+    assert a.rating == 4.5
+    assert a.rating_count == 2979
+    nxt = get_adapter("mediamarkt").next_page_url("", "https://www.mediamarkt.de/de/search.html?query=heissluftfritteuse")
+    assert "page=2" in nxt

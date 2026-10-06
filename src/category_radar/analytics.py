@@ -334,8 +334,132 @@ def market_needs(rows: list[dict], reviews: list[dict], cfg: CategoryConfig) -> 
             "demand_signals": demand[:20]}
 
 
+# ------------------------------------------------------------------ promotions, tests & omnichannel
+def promotional_intensity(rows: list[dict]) -> dict[str, Any]:
+    """Analyse UVP (MSRP) vs real shelf price and promotional discount depth."""
+    by_mkt: dict[str, dict[str, Any]] = {}
+    top_deals = []
+
+    for m, items in _by(rows, "market").items():
+        with_uvp = [
+            r for r in items
+            if r.get("price_eur") and (r.get("extra") or {}).get("uvp_eur")
+        ]
+        brand_deals: dict[str, list[float]] = defaultdict(list)
+        for r in with_uvp:
+            uvp = r["extra"]["uvp_eur"]
+            price = r["price_eur"]
+            if uvp > price:
+                disc = round(100 * (uvp - price) / uvp, 1)
+                brand_deals[r["brand"]].append(disc)
+                top_deals.append({
+                    "market": m,
+                    "channel": r["channel"],
+                    "brand": r["brand"],
+                    "title": r["title"],
+                    "price_eur": price,
+                    "uvp_eur": uvp,
+                    "discount_depth_pct": disc,
+                    "url": r["url"],
+                })
+
+        brand_stats = []
+        for b, discs in brand_deals.items():
+            brand_stats.append({
+                "brand": b,
+                "avg_discount_pct": round(st.mean(discs), 1),
+                "deal_count": len(discs),
+                "max_discount_pct": max(discs),
+            })
+        brand_stats.sort(key=lambda x: -x["avg_discount_pct"])
+
+        all_discs = [d for discs in brand_deals.values() for d in discs]
+        by_mkt[m] = {
+            "products_with_uvp": len(with_uvp),
+            "discounted_products": len(all_discs),
+            "avg_discount_pct": round(st.mean(all_discs), 1) if all_discs else 0.0,
+            "brands": brand_stats,
+        }
+
+    top_deals.sort(key=lambda d: -d["discount_depth_pct"])
+    return {
+        "markets": by_mkt,
+        "top_deals": top_deals[:25],
+    }
+
+
+def editorial_testing(rows: list[dict]) -> dict[str, Any]:
+    """Analyse Stiftung Warentest / Testberichte editorial scores vs consumer ratings."""
+    tested = []
+    for r in rows:
+        ts = (r.get("extra") or {}).get("test_score")
+        if ts is not None and r.get("rating") is not None:
+            score = float(ts)
+            rating = float(r["rating"])
+            quadrant = (
+                "Verified Winner" if score >= 75 and rating >= 4.2 else
+                "Consumer Darling" if score < 75 and rating >= 4.2 else
+                "Lab Winner / Hidden Gem" if score >= 75 and rating < 4.2 else
+                "Underperformer"
+            )
+            tested.append({
+                "brand": r["brand"],
+                "title": r["title"],
+                "market": r["market"],
+                "channel": r["channel"],
+                "model_key": r["model_key"],
+                "test_score": score,
+                "user_rating": rating,
+                "rating_count": r.get("rating_count"),
+                "price_eur": r.get("price_eur"),
+                "quadrant": quadrant,
+                "url": r["url"],
+            })
+
+    tested.sort(key=lambda x: (-x["test_score"], -x["user_rating"]))
+    quadrant_counts = dict(Counter(x["quadrant"] for x in tested))
+
+    return {
+        "count": len(tested),
+        "quadrant_counts": quadrant_counts,
+        "items": tested[:50],
+        "avg_test_score": round(st.mean(x["test_score"] for x in tested), 1) if tested else None,
+    }
+
+
+def omnichannel_comparison(rows: list[dict]) -> dict[str, Any]:
+    """Compare shelf presence and pricing across Comparison Engines and Direct Retailers."""
+    by_channel: dict[str, list[dict]] = defaultdict(list)
+    for r in rows:
+        by_channel[r["channel"]].append(r)
+
+    channel_stats = []
+    for cid, items in by_channel.items():
+        prices = [r["price_eur"] for r in items if r.get("price_eur")]
+        channel_stats.append({
+            "channel": cid,
+            "market": items[0]["market"],
+            "channel_type": items[0].get("channel_type", "price_comparison"),
+            "listings": len(items),
+            "median_price_eur": _median(prices),
+            "p10_eur": percentile(sorted(prices), 10) if prices else None,
+            "p90_eur": percentile(sorted(prices), 90) if prices else None,
+            "brands_count": len({r["brand"] for r in items}),
+        })
+    channel_stats.sort(key=lambda x: (x["market"], x["channel"]))
+    return {"channels": channel_stats}
+
+
 # ------------------------------------------------------------------ narrative
-def key_insights(price: dict, land: dict, pos: dict, needs: dict, cfg: CategoryConfig) -> list[dict[str, str]]:
+def key_insights(
+    price: dict,
+    land: dict,
+    pos: dict,
+    needs: dict,
+    promos: dict,
+    editorial: dict,
+    cfg: CategoryConfig,
+) -> list[dict[str, str]]:
     """Plain-language 'so what' statements generated from the numbers."""
     out: list[dict[str, str]] = []
     mk = land["markets"]
@@ -361,6 +485,18 @@ def key_insights(price: dict, land: dict, pos: dict, needs: dict, cfg: CategoryC
                     "text": f"Largest cross-border gap on an identical model: {c['title']} is "
                             f"{c['spread_pct']}% dearer in {c['dearest']} than in {c['cheapest']}, "
                             f"a grey-import / price-harmonisation risk."})
+
+    for m, pdata in promos.get("markets", {}).items():
+        if pdata.get("discounted_products", 0) >= 2:
+            top_b = pdata["brands"][0]
+            out.append({"market": m, "topic": "price",
+                        "text": f"{cfg.markets[m]['name']}: Promotional discount depth averages {pdata['avg_discount_pct']}% below UVP (MSRP); {top_b['brand']} cuts deepest (avg -{top_b['avg_discount_pct']}%)."})
+
+    if editorial.get("count", 0) >= 2:
+        top_t = editorial["items"][0]
+        out.append({"market": "ALL", "topic": "positioning",
+                    "text": f"Editorial testing: {editorial['count']} models carry certified test scores; {top_t['brand']} leads with {top_t['test_score']:.0f}/100 and {top_t['user_rating']}★ user rating ({top_t['quadrant']})."})
+
     for m, items in needs["feature_lift"].items():
         winners = [x for x in items if x["lift"] and x["lift"] >= 1.2 and x["share_all"] >= 10]
         if winners:
@@ -390,12 +526,18 @@ def analyse(latest: list[dict], history: list[dict], reviews: list[dict], cfg: C
     land = landscape(rows)
     pos = positioning(rows, cfg, land, price)
     needs = market_needs(rows, reviews, cfg)
+    promos = promotional_intensity(latest)
+    editorial = editorial_testing(latest)
+    omnichannel = omnichannel_comparison(latest)
     return {
         "price": price,
         "landscape": land,
         "positioning": pos,
         "needs": needs,
-        "insights": key_insights(price, land, pos, needs, cfg),
+        "promotions": promos,
+        "editorial": editorial,
+        "omnichannel": omnichannel,
+        "insights": key_insights(price, land, pos, needs, promos, editorial, cfg),
     }
 
 
@@ -404,3 +546,4 @@ def dedupe_variants_by_date(history: list[dict]) -> list[dict]:
     for _, day in _by(history, "snapshot_date").items():
         out += dedupe_variants(day)
     return out
+

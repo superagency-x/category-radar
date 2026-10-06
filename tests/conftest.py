@@ -45,11 +45,19 @@ def synthetic_raw(market: str, seed: int = 0, price_shift: float = 1.0) -> list[
     out = []
     for i, (brand, title, eur, cap, typ) in enumerate(order, start=1):
         price = round(eur * FX[cur] * rnd.uniform(0.9, 1.15) * price_shift, 2)
+        extra = {}
+        if market == "PL":
+            extra["recent_purchases_90d"] = rnd.randint(5, 300)
+        if i % 2 == 0:
+            extra["uvp_eur"] = round(eur * 1.35, 2)
+            extra["discount_depth_pct"] = 25.9
+        if i % 3 == 0:
+            extra["test_score"] = rnd.randint(70, 95)
         out.append(RawListing(
             channel=CHANNEL[market], market=market, rank=i, title=title, url=f"https://example.test/{market}/{i}",
             price=price, currency=cur, offers=rnd.randint(1, 30), rating=round(rnd.uniform(3.8, 5), 2),
             rating_count=rnd.randint(0, 400), sponsored=(i == 1 and market in ("PL", "CZ")),
             specs_text=f"Typ: {typ} | Fassungsvermögen: {cap}l", capacity_text=f"{cap}l", power_text="1800W",
-            type_text=typ, extra={"recent_purchases_90d": rnd.randint(5, 300)} if market == "PL" else {},
+            type_text=typ, extra=extra,
         ))
     return out

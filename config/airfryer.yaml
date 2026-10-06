@@ -35,6 +35,18 @@ channels:
     type: price_comparison
     start_url: "https://geizhals.de/?cat=hfritteuse&xf=16101_Hei%C3%9Fluftfritteuse~16101_Doppel-Hei%C3%9Fluftfritteuse~16101_Glas-Hei%C3%9Fluftfritteuse&hloc=de&pagesize=100"
     max_pages: 1
+  otto_de:
+    market: DE
+    adapter: otto
+    type: retailer
+    start_url: "https://www.otto.de/haushalt/kuechengeraete/fritteusen/heissluftfritteusen/"
+    max_pages: 1
+  mediamarkt_de:
+    market: DE
+    adapter: mediamarkt
+    type: retailer
+    start_url: "https://www.mediamarkt.de/de/search.html?query=heissluftfritteuse"
+    max_pages: 1
   geizhals_at:
     market: AT
     adapter: geizhals

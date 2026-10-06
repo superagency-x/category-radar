@@ -63,10 +63,16 @@ def test_full_bundle(tmp_path, cfg):
     # positioning: tiers assigned, maps built
     assert ins["positioning"]["maps"]["DE"]
     assert ins["insights"]
+    # promotions, editorial, omnichannel
+    assert ins["promotions"]["markets"]["DE"]["discounted_products"] > 0
+    assert ins["editorial"]["count"] > 0
+    assert len(ins["omnichannel"]["channels"]) >= 6
     path = write_site_data(bundle, tmp_path / "site")
     assert path.exists() and path.stat().st_size > 1000
     md_p, html_p = write_executive_brief(bundle, tmp_path / "exports")
     assert md_p.exists() and "Executive Category Intelligence Dossier" in md_p.read_text(encoding="utf-8")
+    assert "Promotional Intensity" in md_p.read_text(encoding="utf-8")
+    assert "Editorial Quality Validation" in md_p.read_text(encoding="utf-8")
     assert html_p.exists() and html_p.stat().st_size > 1000
     store.close()
 
