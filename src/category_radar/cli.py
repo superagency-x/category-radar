@@ -21,7 +21,7 @@ from pathlib import Path
 
 from .channels import available_adapters, get_adapter
 from .config import ConfigError, load_config
-from .export import build_bundle, write_csvs, write_site_data
+from .export import build_bundle, write_csvs, write_executive_brief, write_site_data
 from .fetch import BlockedError, Fetcher, FetchError, RobotsDisallowed
 from .pipeline import run_pipeline
 from .store import Store
@@ -45,10 +45,13 @@ def _export(cfg, data_dir: Path, site_dir: Path) -> None:
         store.close()
     path = write_site_data(bundle, site_dir)
     csvs = write_csvs(bundle, data_dir / "exports")
-    print(f"Dashboard data → {path}  ({bundle['meta']['counts']['listings']} listings, "
+    md_brief, html_brief = write_executive_brief(bundle, data_dir / "exports")
+    print(f"Dashboard data   → {path}  ({bundle['meta']['counts']['listings']} listings, "
           f"{bundle['meta']['counts']['reviews']} reviews, {bundle['meta']['counts']['snapshots']} snapshot(s))")
     for c in csvs:
-        print(f"CSV           → {c}")
+        print(f"CSV              → {c}")
+    print(f"Executive Brief  → {md_brief}")
+    print(f"HTML Dossier     → {html_brief}")
 
 
 def cmd_run(args, cfg) -> int:
@@ -82,6 +85,19 @@ def cmd_reparse(args, cfg) -> int:
 
 def cmd_export(args, cfg) -> int:
     _export(cfg, Path(args.data_dir), Path(args.site_dir))
+    return 0
+
+
+def cmd_report(args, cfg) -> int:
+    """Print the executive category intelligence dossier and confirm exports."""
+    store = Store(Path(args.data_dir) / "radar.sqlite")
+    try:
+        bundle = build_bundle(cfg, store)
+    finally:
+        store.close()
+    md_path, html_path = write_executive_brief(bundle, Path(args.data_dir) / "exports")
+    print(md_path.read_text(encoding="utf-8"))
+    print(f"\n[Artifacts written: {md_path} | {html_path}]")
     return 0
 
 
@@ -189,6 +205,10 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("export", help="rebuild dashboard data from the database")
     _common(p)
     p.set_defaults(func=cmd_export)
+
+    p = sub.add_parser("report", help="display and export executive category intelligence dossier")
+    _common(p)
+    p.set_defaults(func=cmd_report)
 
     p = sub.add_parser("reparse", help="re-parse saved HTML of a past day, offline")
     _common(p)

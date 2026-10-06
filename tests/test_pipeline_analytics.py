@@ -3,7 +3,7 @@ from pathlib import Path
 
 from category_radar import pipeline
 from category_radar.analytics import analyse, visibility_weight
-from category_radar.export import build_bundle, write_site_data
+from category_radar.export import build_bundle, write_executive_brief, write_site_data
 from category_radar.models import Review
 from category_radar.normalize import Normalizer
 from category_radar.reviews import extract_reviews
@@ -65,6 +65,9 @@ def test_full_bundle(tmp_path, cfg):
     assert ins["insights"]
     path = write_site_data(bundle, tmp_path / "site")
     assert path.exists() and path.stat().st_size > 1000
+    md_p, html_p = write_executive_brief(bundle, tmp_path / "exports")
+    assert md_p.exists() and "Executive Category Intelligence Dossier" in md_p.read_text(encoding="utf-8")
+    assert html_p.exists() and html_p.stat().st_size > 1000
     store.close()
 
 

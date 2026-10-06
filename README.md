@@ -42,6 +42,7 @@ playwright install chromium        # headless browser fallback for JS-heavy page
 pytest -q                          # 37 tests, offline
 radar doctor                       # does every channel still fetch + parse? (~1 min)
 radar run                          # full snapshot: scrape → store → analyse → export (~5–8 min)
+radar report                       # print executive GTM dossier + save Markdown/HTML brief
 radar serve                        # opens the dashboard at http://127.0.0.1:8000
 ```
 
@@ -52,6 +53,7 @@ radar run --channels geizhals_de,ceneo_pl   # just some channels
 radar run --no-reviews                      # skip product-page review mining (faster)
 radar reparse --date 2026-10-06             # re-parse saved HTML after fixing a parser, no network
 radar export                                # rebuild dashboard data from the database
+radar report                                # print executive category brief
 radar channels                              # list channels and adapters
 ```
 
@@ -59,6 +61,8 @@ Outputs:
 
 - `data/radar.sqlite`: full history (runs, listings, reviews, FX rates)
 - `data/raw/<date>/<channel>/page-N.html`: the exact HTML each run saw (audit trail, replayable)
+- `data/exports/executive_brief_<date>.md`: C-suite / GTM category intelligence brief
+- `data/exports/executive_brief_<date>.html`: print-ready executive dossier
 - `data/exports/*.csv`: listings and brand scorecards, ready for Excel
 - `site/data/radar.json`: the dashboard bundle
 
