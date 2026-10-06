@@ -87,3 +87,15 @@ def test_arukereso_filters_sponsored_and_links():
     assert items[1].url.startswith("https://www.arukereso.hu/olajsuto-c4109/philips/")
     nxt = get_adapter("arukereso").next_page_url((FX / "arukereso.html").read_text(), "https://www.arukereso.hu/olajsuto-c4109/")
     assert nxt.endswith("?start=25")
+
+
+def test_otto():
+    items = parse("otto", "otto.html", "DE", "EUR")
+    assert len(items) >= 15
+    a = items[0]
+    assert a.brand_hint == "BOSCH"
+    assert a.price == 169.9
+    assert a.extra["uvp_eur"] == 269.99
+    assert a.extra["discount_depth_pct"] == 37.1
+    assert a.rating_count == 35
+    assert a.extra["badge_popular"] is True
