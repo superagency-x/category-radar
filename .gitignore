@@ -1,0 +1,14 @@
+__pycache__/
+*.egg-info/
+.venv/
+.pytest_cache/
+# raw HTML and the local database stay on your machine
+data/raw/
+data/exports/
+data/*.sqlite
+data/*.sqlite-*
+data/logs/
+# keep the published dashboard bundle
+!site/data/radar.json
+.DS_Store
+*.tar.gz

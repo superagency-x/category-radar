@@ -1,0 +1,158 @@
+# Category Radar: category definition
+# One YAML file = one category. Copy this file to analyse another category
+# (e.g. robot vacuums). Nothing category-specific lives in the Python code.
+
+category:
+  id: airfryer
+  name: Air fryers
+  base_currency: EUR
+
+# Polite-scraping defaults (overridable per channel)
+crawl:
+  delay_seconds: 4          # pause between requests to the same host
+  timeout_seconds: 30
+  max_retries: 2
+  respect_robots_txt: true
+  user_agent: "CategoryRadar/1.0 (personal market-research project; contact: berksaraloglu@gmail.com)"
+  fetcher: auto             # auto | http | browser  (auto = HTTP first, headless browser on block)
+
+markets:
+  DE: {name: Germany,        currency: EUR, language: de}
+  AT: {name: Austria,        currency: EUR, language: de}
+  CH: {name: Switzerland,    currency: CHF, language: de}
+  PL: {name: Poland,         currency: PLN, language: pl}
+  CZ: {name: Czechia,        currency: CZK, language: cs}
+  HU: {name: Hungary,        currency: HUF, language: hu}
+
+# One "shelf" per market: the dominant price-comparison engine (or the
+# market-leading retailer where the comparison engine blocks automated access).
+# All listing URLs are sorted by popularity, so list position = popularity rank.
+# Pagination follows the page's own "next" link, up to max_pages.
+channels:
+  geizhals_de:
+    market: DE
+    adapter: geizhals
+    type: price_comparison
+    start_url: "https://geizhals.de/?cat=hfritteuse&xf=16101_Hei%C3%9Fluftfritteuse~16101_Doppel-Hei%C3%9Fluftfritteuse~16101_Glas-Hei%C3%9Fluftfritteuse&hloc=de&pagesize=100"
+    max_pages: 1
+  geizhals_at:
+    market: AT
+    adapter: geizhals
+    type: price_comparison
+    start_url: "https://geizhals.at/?cat=hfritteuse&xf=16101_Hei%C3%9Fluftfritteuse~16101_Doppel-Hei%C3%9Fluftfritteuse~16101_Glas-Hei%C3%9Fluftfritteuse&hloc=at&pagesize=100"
+    max_pages: 1
+  toppreise_ch:
+    market: CH
+    adapter: toppreise
+    type: price_comparison
+    start_url: "https://www.toppreise.ch/produktsuche/Haushalt-Kueche/Kuechengeraete/Friteusen/Heissluftfritteusen-c2816"
+    max_pages: 3
+  ceneo_pl:
+    market: PL
+    adapter: ceneo
+    type: price_comparison
+    start_url: "https://www.ceneo.pl/Frytkownice/Typ:Airfryer.htm"
+    max_pages: 3
+  alza_cz:
+    market: CZ
+    adapter: alza
+    type: retailer        # heureka.cz sits behind a bot challenge; Alza is CZ's #1 e-tailer
+    start_url: "https://www.alza.cz/nejprodavanejsi-nejlepsi-horkovzdusne-fritezy/18874040.htm"
+    max_pages: 3
+  arukereso_hu:
+    market: HU
+    adapter: arukereso
+    type: price_comparison
+    start_url: "https://www.arukereso.hu/olajsuto-c4109/"
+    max_pages: 3
+    # This category also contains classic oil fryers. A title with a keep keyword (hot-air)
+    # is always kept; otherwise a title with an oil-fryer keyword is dropped.
+    keep_keywords: "air ?fryer|airfryer|forróleveg|hot air|levegős|dual|duo|crispi|easy fry|turbo|blaze"
+    exclude_keywords: "olajsüt|olajos|minifryer|fondue|deep ?fryer|filtra|\\bFF\\d{3,4}\\b"
+
+# Brand dictionary: canonical name -> aliases (lower-case). Unknown brands
+# fall back to the first word of the title.
+brands:
+  Ninja: [ninja]
+  Cosori: [cosori]
+  Philips: [philips]
+  Tefal: [tefal, "jamie oliver"]
+  Bosch: [bosch]
+  Severin: [severin]
+  Gourmetmaxx: [gourmetmaxx]
+  Tesla: [tesla, "tesla electronics"]
+  Xiaomi: [xiaomi, "mi smart"]
+  Russell Hobbs: ["russell hobbs"]
+  Braun: [braun, "braun household"]
+  Medion: [medion]
+  Rommelsbacher: [rommelsbacher]
+  Princess: [princess]
+  Klarstein: [klarstein]
+  Dreame: [dreame]
+  Panasonic: [panasonic]
+  Kenwood: [kenwood]
+  ETA: [eta]
+  Sencor: [sencor]
+  Lauben: [lauben]
+  Concept: [concept]
+  Berlinger Haus: ["berlinger haus"]
+  Gorenje: [gorenje]
+  Instant: [instant, "instant vortex"]
+  Domo: [domo]
+  Solis: [solis]
+  Create: [create]
+  Siguro: [siguro]
+  Hauser: [hauser]
+  Lydsto: [lydsto]
+  Fritaire: [fritaire]
+  Smeg: [smeg]
+  Morphy Richards: ["morphy richards"]
+  Salter: [salter]
+  Zelmer: [zelmer]
+  MPM: [mpm]
+  Adler: [adler]
+  Camry: [camry]
+  Gotie: [gotie]
+  Lafe: [lafe]
+  Maxxworld: [maxxworld, "rachs kochwerk"]
+
+# Price tiers, as percentiles of each market's price distribution
+price_tiers:
+  - {name: Entry,         max_pct: 25}
+  - {name: Mainstream,    max_pct: 60}
+  - {name: Premium,       max_pct: 90}
+  - {name: Super-premium, max_pct: 100}
+
+# Positioning claims / features, detected in titles, spec lines and descriptions.
+# Patterns are case-insensitive regexes, written in all four languages at once.
+claims:
+  dual_zone:      {label: "Dual zone / two baskets", pattern: "dual|doppel|duo|double|twin|2 ?x|dwie komory|dwa kosze|podwójn|dvě|2 koše|duplakosar|két kosar|kétkosaras|stack"}
+  steam:          {label: "Steam cooking",           pattern: "steam|dampf|par[aąy]|pára|párou|gőz"}
+  window:         {label: "Viewing window",          pattern: "sichtfenster|window|okien|okno|okénk|ablak|glas|glass|szkł|sklo|üveg|crispi"}
+  app:            {label: "App / smart",             pattern: "\\bapp\\b|smart|wifi|wi-fi|connected|aplikac|alkalmaz"}
+  grill:          {label: "Grill function",          pattern: "grill|gril"}
+  xxl:            {label: "XXL family size",         pattern: "xxl|xl\\b|family|rodzin|rodin|családi|mega"}
+  energy:         {label: "Energy saving",           pattern: "energ|spar|oszczęd|šetří|úspor|takarékos"}
+  easy_clean:     {label: "Easy cleaning / dishwasher", pattern: "spülmaschin|dishwasher|zmywar|myčk|mosogatógép|easy clean|snadné čištění|łatwe czyszczenie|könnyen tisztít"}
+  multi_function: {label: "Multi-cooker (n-in-1)",   pattern: "\\d ?in ?1|\\d-in-1|\\d ?w ?1|\\d v 1|\\d az 1|multi"}
+  fast:           {label: "Speed claim",             pattern: "turbo|rapid|schnell|faster|rychlej|szybk|gyors|blaze"}
+  pfas_free:      {label: "Non-toxic / PFAS-free coating", pattern: "pfas|ptfe-free|pfoa|keramik|ceramic|ceramiczn|keramick|kerámia|edelstahl|stainless"}
+
+# Market-needs lexicon for review mining (positive and negative mentions are
+# both "salience": the need matters to buyers).
+needs:
+  capacity:      {label: "Capacity for family meals", pattern: "groß|größe|kapazität|family|familie|pojemn|duż|rodzin|objem|velk|rodin|méret|nagy|család|xxl"}
+  cleaning:      {label: "Easy to clean",             pattern: "reinig|sauber|putz|spülmaschin|czyszcz|myć|zmywar|čišt|myčk|tisztít|mosogat"}
+  noise:         {label: "Quiet operation",           pattern: "laut|leise|geräusch|głośn|cich|hlasit|hluč|tich|hangos|halk|zaj"}
+  crispiness:    {label: "Crispy results",            pattern: "knusprig|kross|chrupi|chrupk|křupav|ropogós|crisp"}
+  speed:         {label: "Cooking speed",             pattern: "schnell|zeit|szybk|czas|rychl|čas|gyors|idő"}
+  footprint:     {label: "Countertop footprint",      pattern: "platz|sperrig|klein|miejsc|zajmuje|místo|rozměr|hely|helyet"}
+  smell:         {label: "Plastic smell / materials", pattern: "geruch|riecht|plastik|zapach|plastik|zápach|plast|szag|műanyag"}
+  coating:       {label: "Coating durability / safety", pattern: "beschicht|teflon|antihaft|powłok|teflon|povrch|nepřilnav|bevonat|teflon"}
+  controls:      {label: "Ease of use / controls",    pattern: "bedien|einfach|intuitiv|display|obsług|prost|łatw|ovládán|jednoduch|kezel|egyszerű"}
+  energy:        {label: "Energy use",                pattern: "strom|energie|energ|prąd|spotřeb|áram"}
+  value:         {label: "Value for money",           pattern: "preis-leistung|preis|günstig|cena|tani|cen|levn|ár|olcsó"}
+
+# Review mining: how many top products per channel to open for reviews
+reviews:
+  top_n_products: 8

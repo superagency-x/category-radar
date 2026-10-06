@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Category Radar · Air fryers in Central Europe</title>
+  <meta name="description" content="Price, positioning, competitive landscape and market needs for air fryers across DE, AT, CH, PL, CZ and HU, built from public shelf data.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='%232f6fed' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='%232f6fed' stroke-width='3'/%3E%3Cpath d='M16 16 L27 7' stroke='%232f6fed' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="sample-banner" class="banner" hidden>Synthetic sample data for layout preview only. Run <code>radar run</code> to load real market data.</div>
+
+  <header class="top">
+    <div class="wrap">
+      <div class="title-row">
+        <div>
+          <p class="eyebrow">Category Radar</p>
+          <h1 id="title">Air fryers · Central Europe</h1>
+          <p class="sub" id="subtitle">Loading…</p>
+        </div>
+        <div class="market-picker" role="radiogroup" aria-label="Market" id="market-picker"></div>
+      </div>
+      <nav class="tabs" role="tablist" id="tabs">
+        <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
+        <button role="tab" data-tab="price">Price</button>
+        <button role="tab" data-tab="positioning">Positioning</button>
+        <button role="tab" data-tab="landscape">Competition</button>
+        <button role="tab" data-tab="needs">Market needs</button>
+        <button role="tab" data-tab="data">Data &amp; method</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- OVERVIEW -->
+    <section data-panel="overview">
+      <div class="kpis" id="kpis"></div>
+      <div class="grid two">
+        <article class="card">
+          <h2>What the data says</h2>
+          <ul class="insights" id="insights"></ul>
+        </article>
+        <article class="card">
+          <h2>Shelf price by market <span class="hint">EUR, median with P10–P90 range</span></h2>
+          <div class="chart"><canvas id="c-market-price"></canvas></div>
+        </article>
+      </div>
+      <article class="card">
+        <h2>Leader per market <span class="hint">visibility-weighted share of the popularity-sorted shelf</span></h2>
+        <div class="chart tall"><canvas id="c-leaders"></canvas></div>
+      </article>
+    </section>
+
+    <!-- PRICE -->
+    <section data-panel="price" hidden>
+      <div class="grid two">
+        <article class="card">
+          <h2>Price distribution · <span class="mk"></span> <span class="hint">EUR, number of products</span></h2>
+          <div class="chart"><canvas id="c-hist"></canvas></div>
+        </article>
+        <article class="card">
+          <h2>Price trend <span class="hint">median of the top 20, EUR</span></h2>
+          <div class="chart"><canvas id="c-trend"></canvas></div>
+          <p class="note" id="trend-note"></p>
+        </article>
+      </div>
+      <article class="card">
+        <h2>Brand price index <span class="hint">brand median ÷ market median × 100; 100 = market median</span></h2>
+        <div class="table-wrap"><table class="heat" id="t-index"></table></div>
+      </article>
+      <article class="card">
+        <h2>Same model, different price <span class="hint">identical models in 3+ markets, EUR at ECB rates</span></h2>
+        <div class="table-wrap"><table id="t-cross"></table></div>
+      </article>
+      <div class="grid two">
+        <article class="card">
+          <h2>Price ladder · <span class="mk"></span></h2>
+          <div class="table-wrap scroll"><table id="t-ladder"></table></div>
+        </article>
+        <article class="card">
+          <h2>Price movers <span class="hint">±5% or more since the previous snapshot</span></h2>
+          <div class="table-wrap scroll"><table id="t-movers"></table></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- POSITIONING -->
+    <section data-panel="positioning" hidden>
+      <article class="card">
+        <div class="card-head">
+          <h2>Brand positioning map · <span class="mk"></span> <span class="hint">bubble size = shelf visibility</span></h2>
+          <label class="select">Y axis
+            <select id="y-metric">
+              <option value="avg_rating">Average user rating</option>
+              <option value="claims_per_product">Claims per product (feature richness)</option>
+              <option value="median_capacity_l">Median capacity (litres)</option>
+              <option value="dual_zone_share">Dual-zone share (%)</option>
+            </select>
+          </label>
+        </div>
+        <div class="chart xl"><canvas id="c-map"></canvas></div>
+        <p class="note">X axis: price index (100 = market median). Top-right is premium and well rated. Bottom-right is premium priced without the proof to back it.</p>
+      </article>
+      <div class="grid two">
+        <article class="card">
+          <h2>Claim ownership · <span class="mk"></span> <span class="hint">% of each brand's range carrying the claim</span></h2>
+          <div class="table-wrap"><table class="heat" id="t-claims"></table></div>
+        </article>
+        <article class="card">
+          <h2>Tier mix · <span class="mk"></span> <span class="hint">products per price tier</span></h2>
+          <div class="chart tall"><canvas id="c-tiers"></canvas></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- LANDSCAPE -->
+    <section data-panel="landscape" hidden>
+      <article class="card">
+        <h2>Share of shelf vs share of voice · <span class="mk"></span> <span class="hint">visibility share vs share of all user ratings</span></h2>
+        <div class="chart tall"><canvas id="c-shares"></canvas></div>
+      </article>
+      <div class="grid two">
+        <article class="card">
+          <h2>Concentration by market <span class="hint">HHI on visibility share; above 2,500 is highly concentrated</span></h2>
+          <div class="chart"><canvas id="c-hhi"></canvas></div>
+        </article>
+        <article class="card">
+          <h2>Brand footprint <span class="hint">pan-regional players vs local champions</span></h2>
+          <div class="table-wrap scroll"><table class="matrix" id="t-footprint"></table></div>
+        </article>
+      </div>
+      <article class="card">
+        <h2>Brand scorecard · <span class="mk"></span></h2>
+        <div class="table-wrap"><table id="t-brands"></table></div>
+      </article>
+    </section>
+
+    <!-- NEEDS -->
+    <section data-panel="needs" hidden>
+      <div class="grid two">
+        <article class="card">
+          <h2>What the shelf rewards · <span class="mk"></span> <span class="hint">share of top-20 vs whole shelf</span></h2>
+          <div class="chart tall"><canvas id="c-lift"></canvas></div>
+          <p class="note">Lift above 1.0x means the feature is over-represented among the best sellers (revealed preference).</p>
+        </article>
+        <article class="card">
+          <h2>What buyers talk about · <span class="mk"></span> <span class="hint">% of reviews mentioning each need</span></h2>
+          <div class="chart tall"><canvas id="c-salience"></canvas></div>
+          <p class="note" id="salience-note"></p>
+        </article>
+      </div>
+      <div class="grid two">
+        <article class="card">
+          <h2>Capacity sweet spot</h2>
+          <div class="table-wrap"><table id="t-capacity"></table></div>
+        </article>
+        <article class="card">
+          <h2>Hard demand signals <span class="hint">units bought in the last 90 days (Ceneo)</span></h2>
+          <div class="table-wrap scroll"><table id="t-demand"></table></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- DATA -->
+    <section data-panel="data" hidden>
+      <article class="card">
+        <h2>Channels in this snapshot</h2>
+        <div class="table-wrap"><table id="t-channels"></table></div>
+      </article>
+      <article class="card">
+        <h2>Method</h2>
+        <dl class="method">
+          <dt>Shelf</dt><dd>Each market's dominant price-comparison engine (or its leading retailer), category page sorted by popularity. List position is treated as popularity rank.</dd>
+          <dt>Visibility share</dt><dd>Brand share of the shelf, weighted 1/log₂(rank+1): rank 1 counts 1.0, rank 3 counts 0.5, rank 15 counts 0.25.</dd>
+          <dt>Share of voice</dt><dd>Brand share of all user ratings on the shelf, a proxy for installed base and historic sales.</dd>
+          <dt>Price index</dt><dd>Brand median price ÷ market median price × 100, using the lowest offer price per product and ECB reference rates.</dd>
+          <dt>Price tiers</dt><dd>Percentiles within each market: Entry ≤ P25 &lt; Mainstream ≤ P60 &lt; Premium ≤ P90 &lt; Super-premium.</dd>
+          <dt>Claims</dt><dd>Multilingual (DE/PL/CS/HU) regex taxonomy run over titles, spec lines and retailer copy. Defined in the category YAML.</dd>
+          <dt>Feature lift</dt><dd>Share of top-20 products carrying a claim ÷ share of all products carrying it.</dd>
+          <dt>Market needs</dt><dd>Review texts from the top products' structured data (schema.org), tagged with a multilingual needs lexicon. Salience = % of reviews mentioning the need.</dd>
+          <dt>Ethics</dt><dd>Public pages only, robots.txt respected, ≥4 s between requests per host, no logins, no CAPTCHA or bot-wall circumvention. Blocked channels are reported, not forced.</dd>
+        </dl>
+      </article>
+      <article class="card">
+        <div class="card-head">
+          <h2>All listings · <span class="mk"></span></h2>
+          <input type="search" id="q" placeholder="Filter by brand or model…" aria-label="Filter listings">
+        </div>
+        <div class="table-wrap scroll tall"><table id="t-listings"></table></div>
+      </article>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    <span id="foot-meta"></span>
+    <span>Built by Berk Saraloglu · <a href="https://github.com/saralogy/category-radar">source</a></span>
+  </footer>
+
+  <script src="vendor/chart.umd.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
