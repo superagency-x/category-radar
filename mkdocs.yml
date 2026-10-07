@@ -1,0 +1,55 @@
+site_name: Category Radar
+site_description: Central European category intelligence from public shelf data
+site_author: Berk Saraloglu
+site_url: https://radar.saralogy.com/docs
+site_dir: site_docs
+
+theme:
+  name: material
+  palette:
+    - scheme: slate
+      primary: blue
+      accent: blue
+    - scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+            heading_level: 3
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: installation.md
+      - Quick Start: quickstart.md
+      - Configuration: configuration.md
+  - User Guide:
+      - Running Radar: running.md
+      - Adding Channels: adding-channels.md
+      - Adding Categories: adding-categories.md
+      - Understanding Metrics: metrics.md
+  - Development:
+      - Architecture: architecture.md
+      - Architecture Decisions: adr/ADR-001-architecture.md
+      - Hosted SaaS: saas-local-development.md
+      - SaaS Architecture Decision: adr/ADR-002-micro-saas-architecture.md
+      - Demo Script: demo-script.md
+      - Testing: testing.md
+      - Contributing: contributing.md
+  - API Reference:
+      - CLI Commands: api/cli.md
+      - Python API: api/python.md

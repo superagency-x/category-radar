@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import httpx
 
 from category_radar.fetch import BlockedError, Fetcher, looks_blocked
@@ -24,6 +22,7 @@ def test_robots_disallow_is_respected(tmp_path):
         if req.url.path == "/robots.txt":
             return httpx.Response(200, text="User-agent: *\nDisallow: /private")
         return httpx.Response(200, text="<html><title>ok</title>" + "x" * 50000 + "</html>")
+
     f = _fetcher(tmp_path, handler)
     assert f.allowed("https://shop.test/category")
     assert not f.allowed("https://shop.test/private/page")
@@ -36,6 +35,7 @@ def test_fetch_caches_html_and_reports_blocks(tmp_path):
         if req.url.path == "/blocked":
             return httpx.Response(403, text="nope")
         return httpx.Response(200, text="<html><title>ok</title>" + "x" * 50000 + "</html>")
+
     f = _fetcher(tmp_path, handler)
     res = f.fetch("https://shop.test/list", cache_path=tmp_path / "c" / "page-1.html")
     assert res.via == "http" and (tmp_path / "c" / "page-1.html").exists()

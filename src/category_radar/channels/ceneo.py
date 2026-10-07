@@ -4,6 +4,7 @@ Ceneo exposes an unusually strong demand signal: "N kupionych ostatnio"
 (units bought via Ceneo in the last 90 days), stored as
 data-productrecentlypurchased. Promoted listings carry a "Polecany" label.
 """
+
 from __future__ import annotations
 
 import re
@@ -42,29 +43,31 @@ class CeneoAdapter(ChannelAdapter):
             if price is None:
                 price = parse_price(text(row.select_one(".cat-prod-row__price .price")), decimal=",")
             bought = row.get("data-productrecentlypurchased")
-            out.append(RawListing(
-                channel=channel,
-                market=market,
-                rank=rank_offset + i,
-                title=text(name_el),
-                url=urljoin(BASE, "/" + pid),
-                price=price,
-                currency=currency,
-                external_id=pid,
-                brand_hint=row.get("data-brand") or None,
-                offers=first_int(text(row.select_one(".shop-numb"))),
-                rating=first_float(text(row.select_one(".product-score"))),
-                rating_count=first_int(text(row.select_one(".prod-review__qo"))),
-                sponsored=bool(row.select_one(".cat-prod-row__name .recommended-label")),
-                specs_text=" | ".join(f"{k}: {v}" for k, v in params.items()),
-                capacity_text=params.get("Pojemność"),
-                power_text=params.get("Moc"),
-                type_text=params.get("Typ"),
-                extra={
-                    "recent_purchases_90d": int(bought) if bought and bought.isdigit() else None,
-                    "variants": first_int(text(row.select_one(".cat-prod-row__variants"))),
-                },
-            ))
+            out.append(
+                RawListing(
+                    channel=channel,
+                    market=market,
+                    rank=rank_offset + i,
+                    title=text(name_el),
+                    url=urljoin(BASE, "/" + pid),
+                    price=price,
+                    currency=currency,
+                    external_id=pid,
+                    brand_hint=row.get("data-brand") or None,
+                    offers=first_int(text(row.select_one(".shop-numb"))),
+                    rating=first_float(text(row.select_one(".product-score"))),
+                    rating_count=first_int(text(row.select_one(".prod-review__qo"))),
+                    sponsored=bool(row.select_one(".cat-prod-row__name .recommended-label")),
+                    specs_text=" | ".join(f"{k}: {v}" for k, v in params.items()),
+                    capacity_text=params.get("Pojemność"),
+                    power_text=params.get("Moc"),
+                    type_text=params.get("Typ"),
+                    extra={
+                        "recent_purchases_90d": int(bought) if bought and bought.isdigit() else None,
+                        "variants": first_int(text(row.select_one(".cat-prod-row__variants"))),
+                    },
+                )
+            )
         return out
 
     def next_page_url(self, html, current_url):

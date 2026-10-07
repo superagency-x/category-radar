@@ -6,11 +6,12 @@
 * claim tagging from a multilingual regex taxonomy defined in the YAML
 * currency conversion to EUR
 """
+
 from __future__ import annotations
 
 import re
 import unicodedata
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 from .config import CategoryConfig
 from .models import Listing, RawListing
@@ -18,10 +19,42 @@ from .models import Listing, RawListing
 MODEL_CODE = re.compile(r"\b([A-Z]{1,4}-?[A-Z]{0,4}\d{2,5}[A-Z0-9]*(?:[/-][A-Z0-9]+)*)\b")
 MODEL_CORE = re.compile(r"^([A-Z]{1,4})([A-Z]{0,4})(\d{2,5})")
 STOPWORDS = {
-    "heißluftfritteuse", "heissluftfritteuse", "doppel", "airfryer", "air", "fryer", "frytkownica",
-    "beztłuszczowa", "horkovzdušná", "fritéza", "forrólevegős", "sütő", "schwarz", "black", "weiß",
-    "weiss", "white", "grau", "grey", "gray", "silber", "silver", "edelstahl", "gold", "kupfer",
-    "bronze", "czarny", "černá", "fekete", "fehér", "inox", "l", "the", "mit", "und", "with",
+    "heißluftfritteuse",
+    "heissluftfritteuse",
+    "doppel",
+    "airfryer",
+    "air",
+    "fryer",
+    "frytkownica",
+    "beztłuszczowa",
+    "horkovzdušná",
+    "fritéza",
+    "forrólevegős",
+    "sütő",
+    "schwarz",
+    "black",
+    "weiß",
+    "weiss",
+    "white",
+    "grau",
+    "grey",
+    "gray",
+    "silber",
+    "silver",
+    "edelstahl",
+    "gold",
+    "kupfer",
+    "bronze",
+    "czarny",
+    "černá",
+    "fekete",
+    "fehér",
+    "inox",
+    "l",
+    "the",
+    "mit",
+    "und",
+    "with",
 }
 
 
@@ -31,17 +64,21 @@ def slug(s: str) -> str:
 
 
 class Normalizer:
-    def __init__(self, cfg: CategoryConfig, fx_to_eur: dict[str, float]):
+    def __init__(self, cfg: CategoryConfig | None, fx_to_eur: dict[str, float]):
         self.cfg = cfg
         self.fx = fx_to_eur  # units of currency per 1 EUR (ECB convention)
-        self._brand_patterns = [
-            (canon, re.compile(r"\b(" + "|".join(re.escape(a) for a in aliases) + r")\b", re.I))
-            for canon, aliases in sorted(cfg.brands.items(), key=lambda kv: -max(len(a) for a in kv[1]))
-        ]
-        self._claims = {k: re.compile(v["pattern"], re.I) for k, v in cfg.claims.items()}
+        if cfg:
+            self._brand_patterns = [
+                (canon, re.compile(r"\b(" + "|".join(re.escape(a) for a in aliases) + r")\b", re.IGNORECASE))
+                for canon, aliases in sorted(cfg.brands.items(), key=lambda kv: -max(len(a) for a in kv[1]))
+            ]
+            self._claims = {k: re.compile(v["pattern"], re.IGNORECASE) for k, v in cfg.claims.items()}
+        else:
+            self._brand_patterns = []
+            self._claims = {}
 
     # -- fields ------------------------------------------------------------
-    def brand(self, title: str, hint: Optional[str]) -> str:
+    def brand(self, title: str, hint: str | None) -> str:
         for candidate in (title, hint or ""):
             for canon, pat in self._brand_patterns:
                 if pat.search(candidate):
@@ -52,7 +89,7 @@ class Normalizer:
         return first.capitalize()
 
     @staticmethod
-    def model_key(brand: str, title: str, extra_code: Optional[str] = None) -> str:
+    def model_key(brand: str, title: str, extra_code: str | None = None) -> str:
         candidates = []
         for src in (extra_code or "", title):
             candidates += MODEL_CODE.findall(src.upper())
@@ -66,16 +103,19 @@ class Normalizer:
             core = f"{letters}{m.group(3)}"
             if len(core) >= 4:
                 return f"{slug(brand)}:{core}"
-        words = [w for w in re.findall(r"[\wäöüßąćęłńóśźżčďěňřšťůžáéíóúýőű]+", title.lower())
-                 if w not in STOPWORDS and w != brand.lower() and not re.fullmatch(r"\d+([.,]\d+)?l?", w)]
+        words = [
+            w
+            for w in re.findall(r"[\wäöüßąćęłńóśźżčďěňřšťůžáéíóúýőű]+", title.lower())
+            if w not in STOPWORDS and w != brand.lower() and not re.fullmatch(r"\d+([.,]\d+)?l?", w)
+        ]
         return f"{slug(brand)}:{slug(' '.join(words[:3]))}"
 
     @staticmethod
-    def capacity_l(*texts: Optional[str]) -> Optional[float]:
+    def capacity_l(*texts: str | None) -> float | None:
         for t in texts:
             if not t:
                 continue
-            m = re.search(r"(\d{1,2}(?:[.,]\d{1,2})?)\s*(?:l|L|litr|liter|litrů|literes)\b", t)
+            m = re.search(r"(\d{1,2}(?:[.,]\d{1,2})?)\s*(?:l|litr|liter|litrů|literes)\b", t, re.IGNORECASE)
             if m:
                 val = float(m.group(1).replace(",", "."))
                 if 0.5 <= val <= 40:
@@ -83,11 +123,12 @@ class Normalizer:
         return None
 
     @staticmethod
-    def power_w(*texts: Optional[str]) -> Optional[int]:
+    def power_w(*texts: str | None) -> int | None:
         for t in texts:
             if not t:
                 continue
-            m = re.search(r"(\d{3,4})\s*W\b", t)
+            cleaned = re.sub(r"(\d)\s+(\d)", r"\1\2", t)
+            m = re.search(r"(\d{3,4})\s*W\b", cleaned, re.IGNORECASE)
             if m and 500 <= int(m.group(1)) <= 4000:
                 return int(m.group(1))
         return None
@@ -96,7 +137,7 @@ class Normalizer:
         blob = " ".join(filter(None, [raw.title, raw.specs_text, raw.type_text, raw.capacity_text]))
         return [k for k, pat in self._claims.items() if pat.search(blob)]
 
-    def to_eur(self, amount: Optional[float], currency: str) -> Optional[float]:
+    def to_eur(self, amount: float | None, currency: str) -> float | None:
         if amount is None:
             return None
         if currency == "EUR":
@@ -108,9 +149,9 @@ class Normalizer:
     def in_category(ch, r: RawListing) -> bool:
         """Mixed categories: keep explicit matches, drop explicit non-matches, keep the rest."""
         blob = f"{r.title} {r.specs_text}"
-        if ch.keep_keywords and re.search(ch.keep_keywords, blob, re.I):
+        if ch.keep_keywords and re.search(ch.keep_keywords, blob, re.IGNORECASE):
             return True
-        if ch.exclude_keywords and re.search(ch.exclude_keywords, blob, re.I):
+        if ch.exclude_keywords and re.search(ch.exclude_keywords, blob, re.IGNORECASE):
             return False
         return True
 
@@ -118,8 +159,8 @@ class Normalizer:
     def normalize(self, raws: Iterable[RawListing], *, run_id: str, snapshot_date: str) -> list[Listing]:
         out: list[Listing] = []
         for r in raws:
-            ch = self.cfg.channels[r.channel]
-            if not self.in_category(ch, r):
+            ch = self.cfg.channels.get(r.channel) if self.cfg else None
+            if ch and not self.in_category(ch, r):
                 continue
             brand = self.brand(r.title, r.brand_hint)
             claims = self.claims_of(r)
@@ -127,33 +168,35 @@ class Normalizer:
             dual = (
                 "dual_zone" in claims
                 or bool(r.capacity_text and re.search(r"2\s*x|1x .*1x", r.capacity_text))
-                or bool(r.type_text and re.search(r"doppel|dual", r.type_text, re.I))
+                or bool(r.type_text and re.search(r"doppel|dual", r.type_text, re.IGNORECASE))
             )
             if dual and "dual_zone" not in claims:
                 claims.append("dual_zone")
-            out.append(Listing(
-                run_id=run_id,
-                snapshot_date=snapshot_date,
-                channel=r.channel,
-                channel_type=ch.type,
-                market=r.market,
-                rank=r.rank,
-                title=r.title,
-                url=r.url,
-                external_id=r.external_id,
-                brand=brand,
-                model_key=self.model_key(brand, r.title, (r.extra or {}).get("mpn")),
-                price_local=r.price,
-                currency=r.currency,
-                price_eur=self.to_eur(r.price, r.currency),
-                offers=r.offers,
-                rating=r.rating,
-                rating_count=r.rating_count,
-                sponsored=r.sponsored,
-                capacity_l=capacity,
-                power_w=self.power_w(r.power_text, r.specs_text, r.title),
-                dual_zone=dual,
-                claims=sorted(set(claims)),
-                extra=r.extra or {},
-            ))
+            out.append(
+                Listing(
+                    run_id=run_id,
+                    snapshot_date=snapshot_date,
+                    channel=r.channel,
+                    channel_type=ch.type if ch else "unknown",
+                    market=r.market,
+                    rank=r.rank,
+                    title=r.title,
+                    url=r.url,
+                    external_id=r.external_id,
+                    brand=brand,
+                    model_key=self.model_key(brand, r.title, (r.extra or {}).get("mpn")),
+                    price_local=r.price,
+                    currency=r.currency,
+                    price_eur=self.to_eur(r.price, r.currency),
+                    offers=r.offers,
+                    rating=r.rating,
+                    rating_count=r.rating_count,
+                    sponsored=r.sponsored,
+                    capacity_l=capacity,
+                    power_w=self.power_w(r.power_text, r.specs_text, r.title),
+                    dual_zone=dual,
+                    claims=sorted(set(claims)),
+                    extra=r.extra or {},
+                )
+            )
         return out

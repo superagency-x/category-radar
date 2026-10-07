@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  radar:
+    build: .
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+    environment:
+      - RADAR_USER_AGENT=CategoryRadar/1.0 (Docker)
+    command: radar run

@@ -4,10 +4,10 @@ Shelf signals: retail price, UVP (strikethrough / was-price) for discount depth,
 rating count, popularity badges ("Sehr beliebt", "Fast ausverkauft"),
 structured spec description.
 """
+
 from __future__ import annotations
 
 import re
-from typing import Optional
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
@@ -45,9 +45,9 @@ class OttoAdapter(ChannelAdapter):
             pricing_el = art.select_one("ofc-pricing-item-v1")
             if pricing_el and pricing_el.get("retail-price"):
                 try:
-                    price = round(int(pricing_el["retail-price"]) / 100.0, 2)
+                    price = round(int(str(pricing_el["retail-price"])) / 100.0, 2)
                     if pricing_el.get("suggested-retail-price"):
-                        uvp = round(int(pricing_el["suggested-retail-price"]) / 100.0, 2)
+                        uvp = round(int(str(pricing_el["suggested-retail-price"])) / 100.0, 2)
                 except (ValueError, TypeError):
                     pass
 
@@ -71,39 +71,47 @@ class OttoAdapter(ChannelAdapter):
             stars_el = art.select_one('[class*="rating__stars"], [aria-label*="Sterne"]')
             rating = None
             if stars_el and stars_el.get("aria-label"):
-                m = re.search(r"(\d+(?:[.,]\d+)?)\s*von\s*5", stars_el.get("aria-label"))
-                if m:
-                    rating = float(m.group(1).replace(",", "."))
+                aria_val = stars_el.get("aria-label")
+                if isinstance(aria_val, str):
+                    m = re.search(r"(\d+(?:[.,]\d+)?)\s*von\s*5", aria_val)
+                    if m:
+                        rating = float(m.group(1).replace(",", "."))
 
             all_txt = text(art)
             is_popular = "Sehr beliebt" in all_txt
             is_selling_fast = "Fast ausverkauft" in all_txt
 
             rank += 1
-            out.append(RawListing(
-                channel=channel,
-                market=market,
-                rank=rank,
-                title=full_title,
-                url=urljoin(BASE, link_el["href"]),
-                price=price,
-                currency=currency,
-                brand_hint=brand or None,
-                rating=rating,
-                rating_count=rating_count,
-                specs_text=product_title,
-                extra={
-                    "uvp_eur": uvp,
-                    "discount_depth_pct": round(100 * (uvp - price) / uvp, 1) if (uvp and price and uvp > price) else None,
-                    "badge_popular": is_popular,
-                    "badge_low_stock": is_selling_fast,
-                },
-            ))
+            out.append(
+                RawListing(
+                    channel=channel,
+                    market=market,
+                    rank=rank,
+                    title=full_title,
+                    url=urljoin(BASE, str(link_el["href"])),
+                    price=price,
+                    currency=currency,
+                    brand_hint=brand or None,
+                    rating=rating,
+                    rating_count=rating_count,
+                    specs_text=product_title,
+                    extra={
+                        "uvp_eur": uvp,
+                        "discount_depth_pct": round(100 * (uvp - price) / uvp, 1)
+                        if (uvp and price and uvp > price)
+                        else None,
+                        "badge_popular": is_popular,
+                        "badge_low_stock": is_selling_fast,
+                    },
+                )
+            )
         return out
 
-    def next_page_url(self, html: str, current_url: str) -> Optional[str]:
+    def next_page_url(self, html: str, current_url: str) -> str | None:
         soup = BeautifulSoup(html, "lxml")
         link = soup.select_one('a[rel="next"], [data-qa="san_pagination_next"]')
         if link and link.get("href"):
-            return urljoin(BASE, link["href"])
+            href = link["href"]
+            if isinstance(href, str):
+                return urljoin(BASE, href)
         return super().next_page_url(html, current_url)

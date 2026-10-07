@@ -5,11 +5,13 @@ publish reviews as schema.org structured data (JSON-LD or microdata) for
 Google rich results. Reading that layer instead of the visual markup means
 one extractor works across all channels and survives redesigns.
 """
+
 from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Iterable, Optional
+from collections.abc import Iterable
+from typing import Any
 
 from bs4 import BeautifulSoup
 
@@ -26,7 +28,7 @@ def _walk(node: Any) -> Iterable[dict]:
             yield from _walk(v)
 
 
-def _rating(r: dict) -> Optional[float]:
+def _rating(r: dict) -> float | None:
     rr = r.get("reviewRating") or {}
     val = rr.get("ratingValue") if isinstance(rr, dict) else None
     try:
@@ -36,10 +38,10 @@ def _rating(r: dict) -> Optional[float]:
         return None
 
 
-def extract_reviews(html: str, limit: int = 50) -> list[tuple[Optional[float], str]]:
+def extract_reviews(html: str, limit: int = 50) -> list[tuple[float | None, str]]:
     """Return [(rating 0..5 or None, text)] found in structured data."""
     soup = BeautifulSoup(html, "lxml")
-    found: list[tuple[Optional[float], str]] = []
+    found: list[tuple[float | None, str]] = []
 
     for tag in soup.find_all("script", type="application/ld+json"):
         try:
@@ -51,7 +53,8 @@ def extract_reviews(html: str, limit: int = 50) -> list[tuple[Optional[float], s
             types = types if isinstance(types, list) else [types]
             if "Review" in types:
                 body = " ".join(
-                    str(node.get(k, "")) for k in ("name", "reviewBody", "description", "positiveNotes", "negativeNotes")
+                    str(node.get(k, ""))
+                    for k in ("name", "reviewBody", "description", "positiveNotes", "negativeNotes")
                     if isinstance(node.get(k), str)
                 ).strip()
                 if len(body) > 15:
@@ -66,7 +69,9 @@ def extract_reviews(html: str, limit: int = 50) -> list[tuple[Optional[float], s
                 rating = None
                 if rv is not None:
                     try:
-                        rating = float((rv.get("content") or rv.get_text()).replace(",", "."))
+                        val = rv.get("content")
+                        raw_txt = val if isinstance(val, str) else rv.get_text()
+                        rating = float(raw_txt.replace(",", "."))
                     except ValueError:
                         rating = None
                 if len(txt) > 15:

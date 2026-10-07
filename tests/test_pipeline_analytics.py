@@ -1,8 +1,9 @@
 """End-to-end: synthetic shelves -> store -> analytics -> export bundle."""
+
 from pathlib import Path
 
 from category_radar import pipeline
-from category_radar.analytics import analyse, visibility_weight
+from category_radar.analytics import visibility_weight
 from category_radar.export import build_bundle, write_executive_brief, write_site_data
 from category_radar.models import Review
 from category_radar.normalize import Normalizer
@@ -24,12 +25,29 @@ def _populate(tmp: Path, cfg, days=("2026-10-05", "2026-10-06")):
             ls = norm.normalize(raws, run_id=run_id, snapshot_date=day)
             ch = raws[0].channel
             status[ch] = {"status": "ok", "listings": store.replace_listings(run_id, ch, ls), "market": m}
-        store.replace_reviews(run_id, [
-            Review(channel="geizhals_de", market="DE", model_key="ninja:AF400", brand="Ninja", rating=5,
-                   text="Sehr leise und leicht zu reinigen, Korb passt in die Spülmaschine", language="de"),
-            Review(channel="ceneo_pl", market="PL", model_key="tefal:EY905", brand="Tefal", rating=2,
-                   text="Głośna i trudno się czyści, zapach plastiku", language="pl"),
-        ])
+        store.replace_reviews(
+            run_id,
+            [
+                Review(
+                    channel="geizhals_de",
+                    market="DE",
+                    model_key="ninja:AF400",
+                    brand="Ninja",
+                    rating=5,
+                    text="Sehr leise und leicht zu reinigen, Korb passt in die Spülmaschine",
+                    language="de",
+                ),
+                Review(
+                    channel="ceneo_pl",
+                    market="PL",
+                    model_key="tefal:EY905",
+                    brand="Tefal",
+                    rating=2,
+                    text="Głośna i trudno się czyści, zapach plastiku",
+                    language="pl",
+                ),
+            ],
+        )
         store.save_fx(run_id, day, FX)
         store.finish_run(run_id, f"{day}T09:10:00+02:00", "ecb", status)
     return store

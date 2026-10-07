@@ -6,13 +6,16 @@ Tables
   reviews    review texts used for market-needs mining
   fx_rates   the exchange rates used by each run (reproducibility)
 """
+
 from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any
 
+from .database import Database
 from .models import Listing, Review
 
 SCHEMA = """
@@ -72,7 +75,7 @@ CREATE TABLE IF NOT EXISTS fx_rates (
 """
 
 
-class Store:
+class Store(Database):
     def __init__(self, path: str | Path):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -110,10 +113,29 @@ class Store:
         self.conn.execute("DELETE FROM listings WHERE run_id=? AND channel=?", (run_id, channel))
         rows = [
             (
-                l.run_id, l.snapshot_date, l.channel, l.channel_type, l.market, l.rank, l.title, l.url,
-                l.external_id, l.brand, l.model_key, l.price_local, l.currency, l.price_eur, l.offers,
-                l.rating, l.rating_count, int(l.sponsored), l.capacity_l, l.power_w, int(l.dual_zone),
-                json.dumps(l.claims), json.dumps(l.extra, ensure_ascii=False),
+                l.run_id,
+                l.snapshot_date,
+                l.channel,
+                l.channel_type,
+                l.market,
+                l.rank,
+                l.title,
+                l.url,
+                l.external_id,
+                l.brand,
+                l.model_key,
+                l.price_local,
+                l.currency,
+                l.price_eur,
+                l.offers,
+                l.rating,
+                l.rating_count,
+                int(l.sponsored),
+                l.capacity_l,
+                l.power_w,
+                int(l.dual_zone),
+                json.dumps(l.claims),
+                json.dumps(l.extra, ensure_ascii=False),
             )
             for l in listings
         ]
@@ -129,7 +151,7 @@ class Store:
         return len(rows)
 
     # -- reads -------------------------------------------------------------
-    def latest_run_id(self) -> Optional[str]:
+    def latest_run_id(self) -> str | None:
         row = self.conn.execute(
             "SELECT run_id FROM runs WHERE finished_at IS NOT NULL ORDER BY started_at DESC LIMIT 1"
         ).fetchone()
@@ -144,7 +166,7 @@ class Store:
             out.append(d)
         return out
 
-    def listings(self, run_id: Optional[str] = None) -> list[dict[str, Any]]:
+    def listings(self, run_id: str | None = None) -> list[dict[str, Any]]:
         if run_id:
             rows = self.conn.execute("SELECT * FROM listings WHERE run_id=? ORDER BY market, rank", (run_id,))
         else:
@@ -159,9 +181,10 @@ class Store:
             out.append(d)
         return out
 
-    def reviews(self, run_id: Optional[str] = None) -> list[dict[str, Any]]:
-        q = "SELECT * FROM reviews" + (" WHERE run_id=?" if run_id else "")
-        return [dict(r) for r in self.conn.execute(q, (run_id,) if run_id else ()).fetchall()]
+    def reviews(self, run_id: str | None = None) -> list[dict[str, Any]]:
+        if run_id:
+            return [dict(r) for r in self.conn.execute("SELECT * FROM reviews WHERE run_id=?", (run_id,)).fetchall()]
+        return [dict(r) for r in self.conn.execute("SELECT * FROM reviews").fetchall()]
 
     def fx(self, run_id: str) -> dict[str, float]:
         rows = self.conn.execute("SELECT currency, per_eur FROM fx_rates WHERE run_id=?", (run_id,)).fetchall()

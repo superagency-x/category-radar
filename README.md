@@ -1,5 +1,7 @@
 # Category Radar
 
+> **Product transition (8 October 2026):** Category Radar is being productized as a hosted micro-SaaS. The local scraper and static dashboard below are the existing prototype, not the hosted customer product. The hosted API supports verified sign-in, workspaces, and workspace-owned radar project configuration; data collection, customer reports, billing, and paid production use are not ready yet. See [the SaaS architecture decision](docs/adr/ADR-002-micro-saas-architecture.md).
+
 **Category intelligence for Central Europe from public shelf data.** Category Radar scrapes the dominant price-comparison engine (or leading retailer) in six markets, normalises everything into one comparable dataset, and answers four questions every category or brand manager asks:
 
 | Question | What you get |
@@ -16,7 +18,17 @@ flowchart LR
   Y[category YAML] --> F[Polite fetcher] --> R[(raw HTML)] --> A[Channel adapters] --> N[Normaliser + ECB FX] --> D[(SQLite history)] --> X[Analytics] --> J[radar.json] -->|radar publish| W[radar.saralogy.com]
 ```
 
-Scraping runs on your own Mac. The website is a static dashboard that reads one JSON file. Design rationale: [ADR-001](docs/adr/ADR-001-architecture.md).
+The prototype's scraping runs on a Mac and the public site reads one JSON file. The hosted product is being built separately from that legacy flow. Design rationale for the prototype: [ADR-001](docs/adr/ADR-001-architecture.md).
+
+## Hosted application foundation
+
+The hosted API is a separate FastAPI entry point. It requires Supabase Auth and PostgreSQL configuration and currently supports authenticated identity, workspaces, and workspace-scoped radar project configuration. Collection, customer reports, billing, and paid production use are not ready yet:
+
+```bash
+uvicorn category_radar.saas.app:app --host 0.0.0.0 --port 8000
+```
+
+See [hosted SaaS local development](docs/saas-local-development.md) for environment and migration setup. Do not deploy the legacy `/api` application or public static data bundle as a multi-customer product.
 
 ## Channels
 
@@ -31,7 +43,7 @@ Scraping runs on your own Mac. The website is a static dashboard that reads one 
 
 heureka.cz (CZ's comparison engine) answers with a bot challenge, so CZ uses Alza. The tool never bypasses CAPTCHAs or bot walls: a blocked channel is reported as `blocked`, not forced.
 
-## Quick start (macOS)
+## Prototype quick start (macOS)
 
 ```bash
 cd ~/Projects/category-radar
