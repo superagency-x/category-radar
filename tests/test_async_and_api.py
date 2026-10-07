@@ -45,6 +45,15 @@ def test_api_endpoints():
         assert r.status_code == 200
         assert isinstance(r.json(), list)
 
+        # Health & Ready
+        r = client.get("/health")
+        assert r.status_code == 200
+        assert r.json()["status"] == "healthy"
+
+        r = client.get("/health/ready")
+        assert r.status_code == 200
+        assert r.json()["status"] in ("ready", "not_ready")
+
 
 def test_async_fetcher_cached(tmp_path):
     async def _test():

@@ -496,8 +496,193 @@
     ], rows);
   }
 
+  // ======================================================== OPERATIONS & HELP
+  function copyToClipboard(text, btn) {
+    if (!text) return;
+    const fallbackCopy = () => {
+      const area = document.createElement("textarea");
+      area.value = text;
+      document.body.appendChild(area);
+      area.select();
+      document.execCommand("copy");
+      document.body.removeChild(area);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(fallbackCopy);
+    } else {
+      fallbackCopy();
+    }
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = "Copied! ✓";
+      btn.classList.add("copied");
+      setTimeout(() => {
+        btn.textContent = orig;
+        btn.classList.remove("copied");
+      }, 1600);
+    }
+  }
+
+  let opsInitialized = false;
+  function renderOps() {
+    if (opsInitialized) return;
+    opsInitialized = true;
+
+    // Attach 1-click copy to all buttons with data-copy
+    $$("button[data-copy]").forEach((btn) => {
+      btn.addEventListener("click", () => copyToClipboard(btn.dataset.copy, btn));
+    });
+
+    const actionSel = $("#builder-action");
+    const channelSel = $("#builder-channel");
+    const channelWrap = $("#builder-channel-wrap");
+    const chkAsync = $("#chk-async");
+    const lblAsync = $("#lbl-flag-async");
+    const chkVerbose = $("#chk-verbose");
+    const chkNoreviews = $("#chk-noreviews");
+    const lblNoreviews = $("#lbl-flag-noreviews");
+    const cmdText = $("#builder-cmd-text");
+    const cmdNote = $("#builder-note");
+    const btnCopy = $("#btn-builder-copy");
+
+    function updateBuilder() {
+      if (!actionSel) return;
+      const act = actionSel.value;
+      const ch = channelSel ? channelSel.value : "";
+      const isAsync = chkAsync ? chkAsync.checked : false;
+      const isVerbose = chkVerbose ? chkVerbose.checked : false;
+      const isNoReviews = chkNoreviews ? chkNoreviews.checked : false;
+
+      // Adjust control visibility based on chosen action
+      const hasChannels = act === "doctor" || act === "run";
+      if (channelWrap) channelWrap.style.display = hasChannels ? "" : "none";
+      if (lblAsync) lblAsync.style.display = act === "run" ? "" : "none";
+      if (lblNoreviews) lblNoreviews.style.display = act === "run" ? "" : "none";
+
+      let cmd = "radar run";
+      let note = "";
+
+      switch (act) {
+        case "doctor":
+          cmd = "radar doctor";
+          if (ch) cmd += ` --channels ${ch}`;
+          if (isVerbose) cmd += " -v";
+          note = ch ? `Verify fetch & parse selectors for ${ch}.` : "Verify fetch & parse selectors across all 8 CE channels.";
+          break;
+        case "run":
+          cmd = "radar run";
+          if (isAsync) cmd += " --async";
+          if (ch) cmd += ` --channels ${ch}`;
+          if (isNoReviews) cmd += " --no-reviews";
+          if (isVerbose) cmd += " -v";
+          note = isAsync
+            ? "High-performance concurrent scrape across channels via httpx."
+            : "Sequential scrape across channels with delay throttling.";
+          break;
+        case "report":
+          cmd = "radar report" + (isVerbose ? " -v" : "");
+          note = "Display terminal executive intelligence report and export HTML briefing.";
+          break;
+        case "api":
+          cmd = "radar api --port 8000" + (isVerbose ? " -v" : "");
+          note = "Launch FastAPI backend on port 8000 (OpenAPI docs at http://127.0.0.1:8000/docs).";
+          break;
+        case "health":
+          cmd = "radar health --port 8765" + (isVerbose ? " -v" : "");
+          note = "Launch health & readiness probe server on port 8765.";
+          break;
+        case "serve":
+          cmd = "radar serve --port 8000";
+          note = "Start local HTTP web server for this interactive category dashboard.";
+          break;
+        case "export":
+          cmd = "radar export" + (isVerbose ? " -v" : "");
+          note = "Re-analyze SQLite history and re-generate radar.json, CSVs, and executive brief.";
+          break;
+        case "migrate":
+          cmd = "radar migrate";
+          note = "Apply Alembic database migrations to data/radar.sqlite.";
+          break;
+        case "mkdocs":
+          cmd = "mkdocs serve";
+          note = "Start documentation server (13 guides on architecture, runbooks, and schemas).";
+          break;
+        case "pytest":
+          cmd = "pytest" + (isVerbose ? " -v" : "");
+          note = "Run 56 automated tests verifying adapters, resilience, and analytics (enforcing ≥60% coverage).";
+          break;
+      }
+
+      if (cmdText) cmdText.textContent = cmd;
+      if (cmdNote) cmdNote.textContent = note;
+    }
+
+    [actionSel, channelSel, chkAsync, chkVerbose, chkNoreviews].forEach((el) => {
+      if (el) el.addEventListener("change", updateBuilder);
+    });
+    if (btnCopy && cmdText) {
+      btnCopy.addEventListener("click", () => copyToClipboard(cmdText.textContent, btnCopy));
+    }
+    updateBuilder();
+
+    // Probe interrogator
+    const badge = $("#probe-status-badge");
+    const outputWrap = $("#probe-output-wrap");
+    const outputPre = $("#probe-output-pre");
+    const outputLabel = $("#probe-endpoint-label");
+    const btnClear = $("#btn-clear-probe");
+
+    async function interrogate(url, altUrl, label) {
+      if (!badge || !outputWrap || !outputPre) return;
+      badge.textContent = "Querying…";
+      badge.className = "badge";
+      outputLabel.textContent = `${label} (${url})`;
+      outputWrap.hidden = false;
+      outputPre.textContent = "Connecting to endpoint...";
+
+      try {
+        let res = null;
+        try {
+          res = await fetch(url, { signal: AbortSignal.timeout(2500) });
+        } catch (e1) {
+          if (altUrl) {
+            outputLabel.textContent = `${label} (${altUrl})`;
+            res = await fetch(altUrl, { signal: AbortSignal.timeout(2500) });
+          } else {
+            throw e1;
+          }
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+        const json = await res.json();
+        badge.textContent = "Online ✓";
+        badge.className = "badge ok";
+        outputPre.textContent = JSON.stringify(json, null, 2);
+      } catch (err) {
+        badge.textContent = "Offline";
+        badge.className = "badge bad";
+        outputPre.textContent = `Endpoint unreachable (${err.message}).\n\nTo start this service, run:\n` +
+          (label.includes("Health") ? "radar health --port 8765" : "radar api --port 8000");
+      }
+    }
+
+    $("#btn-probe-health")?.addEventListener("click", () => {
+      interrogate("http://127.0.0.1:8765/health", "/health", "Health Check");
+    });
+    $("#btn-probe-api")?.addEventListener("click", () => {
+      interrogate("/api/v1/listings?limit=2", "http://127.0.0.1:8000/api/v1/listings?limit=2", "REST API");
+    });
+    $("#btn-probe-ready")?.addEventListener("click", () => {
+      interrogate("http://127.0.0.1:8765/health/ready", "/health/ready", "Readiness Probe");
+    });
+    btnClear?.addEventListener("click", () => {
+      outputWrap.hidden = true;
+      badge.textContent = "Idle";
+      badge.className = "badge";
+    });
+  }
+
   // ======================================================== shell
-  const RENDER = { overview: renderOverview, price: renderPrice, positioning: renderPositioning, landscape: renderLandscape, needs: renderNeeds, data: renderData };
+  const RENDER = { overview: renderOverview, price: renderPrice, positioning: renderPositioning, landscape: renderLandscape, needs: renderNeeds, data: renderData, ops: renderOps };
 
   function setTab(tab) {
     state.tab = tab;
@@ -505,7 +690,7 @@
     $$("section[data-panel]").forEach((s) => (s.hidden = s.dataset.panel !== tab));
     try { localStorage.setItem("radar.tab", tab); } catch (e) { /* storage unavailable */ }
     history.replaceState(null, "", `#${tab}/${state.market}`);
-    RENDER[tab]();
+    if (RENDER[tab]) RENDER[tab]();
   }
 
   function setMarket(m) {
@@ -514,7 +699,7 @@
     $$(".mk").forEach((s) => (s.textContent = `${m} · ${marketName(m)}`));
     try { localStorage.setItem("radar.market", m); } catch (e) { /* storage unavailable */ }
     history.replaceState(null, "", `#${state.tab}/${m}`);
-    RENDER[state.tab]();
+    if (RENDER[state.tab]) RENDER[state.tab]();
   }
 
   async function init() {
@@ -543,8 +728,9 @@
     $("#market-picker").innerHTML = markets.map((m) => `<button role="radio" data-m="${m}" aria-checked="false" title="${esc(marketName(m))}">${m}</button>`).join("");
     $$("#market-picker button").forEach((b) => b.addEventListener("click", () => setMarket(b.dataset.m)));
     $$("#tabs button").forEach((b) => b.addEventListener("click", () => setTab(b.dataset.tab)));
-    $("#y-metric").addEventListener("change", renderPositioning);
-    $("#q").addEventListener("input", renderListings);
+    $("#btn-quick-ops")?.addEventListener("click", () => setTab("ops"));
+    $("#y-metric")?.addEventListener("change", renderPositioning);
+    $("#q")?.addEventListener("input", renderListings);
 
     let m = markets[0], tab = "overview";
     try {
@@ -564,7 +750,9 @@
       if (markets.includes(mm) && mm !== state.market) { state.market = mm; setMarket(mm); }
       if (RENDER[t] && t !== state.tab) setTab(t);
     });
-    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => RENDER[state.tab]());
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+      if (RENDER[state.tab]) RENDER[state.tab]();
+    });
   }
 
   init();

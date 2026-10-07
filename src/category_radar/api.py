@@ -1,12 +1,15 @@
 """REST API for programmatic access to Category Radar data."""
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .config import load_config
 from .export import build_bundle
+from .health import HealthResponse, health_check, readiness_check
 from .logging_config import get_logger
 from .store import Store
 
@@ -59,7 +62,20 @@ async def root():
         "version": "1.0.0",
         "docs": "/docs",
         "health": "/health",
+        "dashboard": "/dashboard/",
     }
+
+
+@app.get("/health", response_model=HealthResponse)
+async def api_health() -> HealthResponse:
+    """Return system health status."""
+    return await health_check(DATA_DIR)
+
+
+@app.get("/health/ready")
+async def api_readiness() -> dict[str, str]:
+    """Kubernetes-style readiness probe."""
+    return await readiness_check(DATA_DIR)
 
 
 @app.get("/api/v1/listings")
@@ -164,3 +180,8 @@ async def get_brands(market: str | None = None) -> list[BrandStats]:
         return brands
     finally:
         store.close()
+
+
+site_dir = Path("site")
+if site_dir.exists():
+    app.mount("/dashboard", StaticFiles(directory=str(site_dir), html=True), name="dashboard")

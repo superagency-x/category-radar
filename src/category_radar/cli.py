@@ -49,6 +49,18 @@ def _export(cfg, data_dir: Path, site_dir: Path) -> None:
     path = write_site_data(bundle, site_dir)
     csvs = write_csvs(bundle, data_dir / "exports")
     md_brief, html_brief = write_executive_brief(bundle, data_dir / "exports")
+    # Also mirror executive brief and CSVs into site/data for direct web dashboard access
+    try:
+        import shutil
+
+        site_data = site_dir / "data"
+        site_data.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(html_brief, site_data / "executive_brief.html")
+        for c in csvs:
+            prefix = "listings" if "listings_" in c.name else "brands"
+            shutil.copy2(c, site_data / f"{prefix}.csv")
+    except Exception as e:
+        log.warning("site_export_mirror_failed", error=str(e))
     print(
         f"Dashboard data   → {path}  ({bundle['meta']['counts']['listings']} listings, "
         f"{bundle['meta']['counts']['reviews']} reviews, {bundle['meta']['counts']['snapshots']} snapshot(s))"

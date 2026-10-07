@@ -19,7 +19,10 @@
           <h1 id="title">Air fryers · Central Europe</h1>
           <p class="sub" id="subtitle">Loading…</p>
         </div>
-        <div class="market-picker" role="radiogroup" aria-label="Market" id="market-picker"></div>
+        <div class="market-picker-wrap">
+          <button id="btn-quick-ops" class="btn-ops-quick" title="Open Run & Test operations console">⚡ Run &amp; Test</button>
+          <div class="market-picker" role="radiogroup" aria-label="Market" id="market-picker"></div>
+        </div>
       </div>
       <nav class="tabs" role="tablist" id="tabs">
         <button role="tab" data-tab="overview" aria-selected="true">Overview</button>
@@ -28,6 +31,7 @@
         <button role="tab" data-tab="landscape">Competition</button>
         <button role="tab" data-tab="needs">Market needs</button>
         <button role="tab" data-tab="data">Data &amp; method</button>
+        <button role="tab" data-tab="ops" class="tab-ops">⚡ Run &amp; Test</button>
       </nav>
     </div>
   </header>
@@ -220,6 +224,295 @@
           <input type="search" id="q" placeholder="Filter by brand or model…" aria-label="Filter listings">
         </div>
         <div class="table-wrap scroll tall"><table id="t-listings"></table></div>
+      </article>
+    </section>
+
+    <!-- OPERATIONS & HELP CONSOLE -->
+    <section data-panel="ops" hidden>
+      <!-- Hero Banner -->
+      <article class="card ops-hero-card">
+        <div class="ops-hero-content">
+          <div>
+            <span class="badge ops-pill">⚡ Local Operations &amp; Diagnostics</span>
+            <h2 class="ops-title">Category Radar Control &amp; Testing Console</h2>
+            <p class="ops-desc">
+              Execute, test, and monitor all Category Radar capabilities directly on your Mac. Run live scrapes, inspect channel parsers, launch REST API services, monitor health probes, and generate executive briefings.
+            </p>
+          </div>
+          <div class="ops-env-badges">
+            <div class="env-item"><span class="env-label">CLI Binary</span><code>.venv/bin/radar</code></div>
+            <div class="env-item"><span class="env-label">Python Runtime</span><code>3.13 (.venv)</code></div>
+            <div class="env-item"><span class="env-label">Primary Store</span><code>data/radar.sqlite</code></div>
+            <div class="env-item"><span class="env-label">Configuration</span><code>config/airfryer.yaml</code></div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Live Service Diagnostics & Dynamic Command Builder -->
+      <div class="grid two">
+        <article class="card">
+          <div class="card-head">
+            <h2>Live Service Diagnostics <span class="hint">real-time probe interrogator</span></h2>
+            <span id="probe-status-badge" class="badge">Idle</span>
+          </div>
+          <p class="note" style="margin-top:0; margin-bottom:14px;">Interrogate local daemons directly from this browser session to verify API or health monitoring status.</p>
+          <div class="probe-actions">
+            <button id="btn-probe-health" class="btn-action">🩺 Ping Health Probe (:8765 or /health)</button>
+            <button id="btn-probe-api" class="btn-action">🌐 Ping REST API (/api/v1)</button>
+            <button id="btn-probe-ready" class="btn-action">🛡️ Check Readiness Probe</button>
+          </div>
+          <div id="probe-output-wrap" class="probe-output-wrap" hidden>
+            <div class="probe-output-head">
+              <span id="probe-endpoint-label">Probe Output</span>
+              <button id="btn-clear-probe" class="btn-text">Clear</button>
+            </div>
+            <pre id="probe-output-pre"><code>{}</code></pre>
+          </div>
+        </article>
+
+        <!-- Dynamic Command Generator -->
+        <article class="card">
+          <div class="card-head">
+            <h2>Command Builder <span class="hint">configure &amp; copy custom radar CLI commands</span></h2>
+          </div>
+          <div class="builder-form">
+            <div class="builder-row">
+              <label class="select">Action
+                <select id="builder-action">
+                  <option value="doctor">radar doctor (Verify scrapers &amp; channels)</option>
+                  <option value="run">radar run (Collect shelf data &amp; analyze)</option>
+                  <option value="report">radar report (Generate executive brief)</option>
+                  <option value="api">radar api (Start FastAPI REST service)</option>
+                  <option value="health">radar health (Start monitoring daemon)</option>
+                  <option value="serve">radar serve (Start dashboard web server)</option>
+                  <option value="export">radar export (Rebuild JSON &amp; CSVs)</option>
+                  <option value="migrate">radar migrate (Run Alembic migrations)</option>
+                  <option value="mkdocs">mkdocs serve (Serve documentation site)</option>
+                  <option value="pytest">pytest (Run test suite &amp; coverage)</option>
+                </select>
+              </label>
+            </div>
+            <div class="builder-row grid-sub" id="builder-options-row">
+              <label class="select" id="builder-channel-wrap">Channel
+                <select id="builder-channel">
+                  <option value="">All channels (8 CE channels)</option>
+                  <option value="geizhals_de">geizhals_de (DE · Geizhals)</option>
+                  <option value="otto_de">otto_de (DE · Otto)</option>
+                  <option value="mediamarkt_de">mediamarkt_de (DE · MediaMarkt)</option>
+                  <option value="geizhals_at">geizhals_at (AT · Geizhals)</option>
+                  <option value="toppreise_ch">toppreise_ch (CH · Toppreise)</option>
+                  <option value="ceneo_pl">ceneo_pl (PL · Ceneo)</option>
+                  <option value="alza_cz">alza_cz (CZ · Alza)</option>
+                  <option value="arukereso_hu">arukereso_hu (HU · Árukereső)</option>
+                </select>
+              </label>
+              <div class="builder-flags" id="builder-flags">
+                <label class="checkbox-label" id="lbl-flag-async"><input type="checkbox" id="chk-async" checked> <code>--async</code> (concurrent)</label>
+                <label class="checkbox-label" id="lbl-flag-verbose"><input type="checkbox" id="chk-verbose"> <code>-v</code> (verbose)</label>
+                <label class="checkbox-label" id="lbl-flag-noreviews"><input type="checkbox" id="chk-noreviews"> <code>--no-reviews</code></label>
+              </div>
+            </div>
+            <div class="cmd-display-box">
+              <code id="builder-cmd-text">radar run --async</code>
+              <button class="btn-copy" id="btn-builder-copy" title="Copy to clipboard">📋 Copy</button>
+            </div>
+            <p class="note" id="builder-note">Concurrent scrape across all configured channels via httpx.</p>
+          </div>
+        </article>
+      </div>
+
+      <!-- Playbook Guides (8 Cards) -->
+      <article class="card">
+        <h2>Operations &amp; Testing Playbooks <span class="hint">1-click copyable workflows for your terminal</span></h2>
+        <div class="playbooks-grid">
+
+          <div class="playbook-item">
+            <div class="playbook-head">
+              <span class="playbook-icon">🩺</span>
+              <div>
+                <h3>Channel Health &amp; Diagnostics</h3>
+                <p>Verify live network scrapers, anti-bot detection, and HTML selectors without updating the database.</p>
+              </div>
+            </div>
+            <div class="code-box">
+              <code>radar doctor --channels geizhals_de</code>
+              <button class="btn-copy" data-copy="radar doctor --channels geizhals_de">📋 Copy</button>
+            </div>
+            <div class="code-box" style="margin-top:6px;">
+              <code>radar doctor</code>
+              <button class="btn-copy" data-copy="radar doctor">📋 Copy</button>
+            </div>
+            <p class="hint-small">Doctor fetches page 1 and verifies products, pricing, and currency parsing.</p>
+          </div>
+
+          <div class="playbook-item">
+            <div class="playbook-head">
+              <span class="playbook-icon">🚀</span>
+              <div>
+                <h3>Data Ingestion &amp; Scraping</h3>
+                <p>Collect live listings across Central Europe, run price &amp; claim analytics, and update the database.</p>
+              </div>
+            </div>
+            <div class="code-box">
+              <code>radar run --async</code>
+              <button class="btn-copy" data-copy="radar run --async">📋 Copy</button>
+            </div>
+            <div class="code-box" style="margin-top:6px;">
+              <code>radar run --channels geizhals_de --no-reviews</code>
+              <button class="btn-copy" data-copy="radar run --channels geizhals_de --no-reviews">📋 Copy</button>
+            </div>
+            <p class="hint-small">Use <code>--async</code> for concurrent fetching or specify single channels for quick tests.</p>
+          </div>
+
+          <div class="playbook-item">
+            <div class="playbook-head">
+              <span class="playbook-icon">📊</span>
+              <div>
+                <h3>Executive Intelligence Briefing</h3>
+                <p>Generate a C-level category report in terminal Markdown and printable standalone HTML.</p>
+              </div>
+            </div>
+            <div class="code-box">
+              <code>radar report</code>
+              <button class="btn-copy" data-copy="radar report">📋 Copy</button>
+            </div>
+            <div class="playbook-links">
+              <a href="data/executive_brief.html" target="_blank" class="btn-link">📄 Open Latest HTML Dossier ↗</a>
+            </div>
+            <p class="hint-small">Outputs to <code>data/exports/executive_brief_&lt;date&gt;.html</code> with full pricing and competitor breakdown.</p>
+          </div>
+
+          <div class="playbook-item">
+            <div class="playbook-head">
+              <span class="playbook-icon">🌐</span>
+              <div>
+                <h3>FastAPI REST Service</h3>
+                <p>Launch the high-performance REST API with interactive Swagger / OpenAPI documentation.</p>
+              </div>
+            </div>
+            <div class="code-box">
+              <code>radar api --port 8000</code>
+              <button class="btn-copy" data-copy="radar api --port 8000">📋 Copy</button>
+            </div>
+            <div class="playbook-links">
+              <a href="/docs" target="_blank" class="btn-link">🚀 Open Swagger UI Docs ↗</a>
+              <a href="/api/v1/listings?limit=10" target="_blank" class="btn-link">View Sample API JSON ↗</a>
+            </div>
+            <p class="hint-small">Endpoints for listings, price indices, market landscapes, and brand scorecards.</p>
+          </div>
+
+          <div class="playbook-item">
+            <div class="playbook-head">
+              <span class="playbook-icon">🛡️</span>
+              <div>
+                <h3>Health Daemon &amp; Probes</h3>
+                <p>Run standalone health daemon for 24/7 uptime monitoring and Kubernetes-style readiness checks.</p>
+              </div>
+            </div>
+            <div class="code-box">
+              <code>radar health --port 8765</code>
+              <button class="btn-copy" data-copy="radar health --port 8765">📋 Copy</button>
+            </div>
+            <div class="code-box" style="margin-top:6px;">
+              <code>curl -s http://127.0.0.1:8765/health | jq .</code>
+              <button class="btn-copy" data-copy="curl -s http://127.0.0.1:8765/health | jq .">📋 Copy</button>
+            </div>
+            <p class="hint-small">Monitors SQLite database size, last run completion status, and disk space.</p>
+          </div>
+
+          <div class="playbook-item">
+            <div class="playbook-head">
+              <span class="playbook-icon">🖥️</span>
+              <div>
+                <h3>Interactive Web Dashboard</h3>
+                <p>Run the local static dashboard HTTP server or export portable data bundles.</p>
+              </div>
+            </div>
+            <div class="code-box">
+              <code>radar serve --port 8000</code>
+              <button class="btn-copy" data-copy="radar serve --port 8000">📋 Copy</button>
+            </div>
+            <div class="code-box" style="margin-top:6px;">
+              <code>radar export</code>
+              <button class="btn-copy" data-copy="radar export">📋 Copy</button>
+            </div>
+            <p class="hint-small">Auto-opens <code>http://127.0.0.1:8000</code> with real-time Chart.js visualisations.</p>
+          </div>
+
+          <div class="playbook-item">
+            <div class="playbook-head">
+              <span class="playbook-icon">📚</span>
+              <div>
+                <h3>MkDocs Documentation Site</h3>
+                <p>Browse 13 comprehensive architecture guides, runbooks, schemas, and ADRs.</p>
+              </div>
+            </div>
+            <div class="code-box">
+              <code>mkdocs serve</code>
+              <button class="btn-copy" data-copy="mkdocs serve">📋 Copy</button>
+            </div>
+            <div class="code-box" style="margin-top:6px;">
+              <code>mkdocs build</code>
+              <button class="btn-copy" data-copy="mkdocs build">📋 Copy</button>
+            </div>
+            <p class="hint-small">Builds static site to <code>site_docs/</code> avoiding collision with the web dashboard.</p>
+          </div>
+
+          <div class="playbook-item">
+            <div class="playbook-head">
+              <span class="playbook-icon">🧪</span>
+              <div>
+                <h3>Test Suite &amp; Quality Checks</h3>
+                <p>Run unit, integration, and coverage test verification (enforcing &ge;60% coverage threshold).</p>
+              </div>
+            </div>
+            <div class="code-box">
+              <code>pytest</code>
+              <button class="btn-copy" data-copy="pytest">📋 Copy</button>
+            </div>
+            <div class="code-box" style="margin-top:6px;">
+              <code>pytest --cov=category_radar --cov-report=term-missing</code>
+              <button class="btn-copy" data-copy="pytest --cov=category_radar --cov-report=term-missing">📋 Copy</button>
+            </div>
+            <p class="hint-small">56 automated tests verifying adapters, resilience, database, and analytics.</p>
+          </div>
+
+        </div>
+      </article>
+
+      <!-- Direct Data Downloads & Exports -->
+      <article class="card">
+        <h2>Data Artifacts &amp; Direct Downloads <span class="hint">portable exports from the latest market snapshot</span></h2>
+        <div class="exports-grid">
+          <a href="data/radar.json" download class="export-chip">
+            <span class="chip-icon">📊</span>
+            <div>
+              <strong>radar.json</strong>
+              <span>Full dashboard bundle (insights + listings)</span>
+            </div>
+          </a>
+          <a href="data/executive_brief.html" target="_blank" class="export-chip">
+            <span class="chip-icon">📄</span>
+            <div>
+              <strong>executive_brief.html</strong>
+              <span>Standalone printable executive dossier</span>
+            </div>
+          </a>
+          <a href="data/listings.csv" download class="export-chip">
+            <span class="chip-icon">📑</span>
+            <div>
+              <strong>listings.csv</strong>
+              <span>All normalized shelf listings with claims</span>
+            </div>
+          </a>
+          <a href="data/brands.csv" download class="export-chip">
+            <span class="chip-icon">🏷️</span>
+            <div>
+              <strong>brands.csv</strong>
+              <span>Brand scorecards &amp; price index matrix</span>
+            </div>
+          </a>
+        </div>
       </article>
     </section>
   </main>

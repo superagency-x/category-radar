@@ -1,9 +1,9 @@
 """Generate high-resolution Category Radar macOS AppIcon.icns using Playwright, sips, and iconutil."""
 import asyncio
-import os
 import shutil
 import subprocess
 from pathlib import Path
+
 from playwright.async_api import async_playwright
 
 SVG_CONTENT = """
