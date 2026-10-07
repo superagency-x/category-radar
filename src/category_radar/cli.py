@@ -66,7 +66,16 @@ def cmd_run(args, cfg) -> int:
         if unknown:
             print(f"Unknown channel(s): {', '.join(sorted(unknown))}")
             return 2
-    report = run_pipeline(cfg, Path(args.data_dir), channels=channels, with_reviews=not args.no_reviews, progress=print)
+    if getattr(args, "async_mode", False):
+        import asyncio
+
+        from .pipeline import run_pipeline_async
+
+        report = asyncio.run(run_pipeline_async(cfg, Path(args.data_dir), channels=channels))
+    else:
+        report = run_pipeline(
+            cfg, Path(args.data_dir), channels=channels, with_reviews=not args.no_reviews, progress=print
+        )
     print(f"\nRun {report.run_id}: {report.total_listings} listings, {report.reviews} reviews")
     for cid, s in report.channel_status.items():
         print(
@@ -219,6 +228,17 @@ def cmd_migrate(args, cfg) -> int:
     return result.returncode
 
 
+def cmd_api(args, cfg) -> int:
+    """Start API server."""
+    import uvicorn
+
+    from .api import app
+
+    log.info("api_server_start", port=args.port)
+    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="info")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="radar", description="Category Radar: Central European category intelligence")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -228,6 +248,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--channels", help="comma-separated subset, e.g. geizhals_de,ceneo_pl")
     p.add_argument("--no-reviews", action="store_true", help="skip product-page review mining (faster)")
     p.add_argument("--no-export", action="store_true")
+    p.add_argument("--async", dest="async_mode", action="store_true", help="use async concurrent scraping")
     p.set_defaults(func=cmd_run)
 
     p = sub.add_parser("doctor", help="check every channel still fetches and parses")
@@ -270,6 +291,11 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("migrate", help="run database migrations")
     _common(p)
     p.set_defaults(func=cmd_migrate)
+
+    p = sub.add_parser("api", help="start REST API server")
+    _common(p)
+    p.add_argument("--port", type=int, default=8000)
+    p.set_defaults(func=cmd_api)
 
     args = parser.parse_args(argv)
     configure_logging(Path(args.data_dir), args.verbose)

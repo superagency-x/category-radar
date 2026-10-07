@@ -1,6 +1,8 @@
 """End-to-end integration tests."""
+
 from datetime import datetime, timezone
 from pathlib import Path
+
 import pytest
 
 from category_radar.config import load_config

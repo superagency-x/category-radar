@@ -17,6 +17,7 @@ from typing import Any
 from .channels import get_adapter
 from .config import CategoryConfig
 from .fetch import BlockedError, Fetcher, FetchError, RobotsDisallowed
+from .fetch_async import AsyncFetcher
 from .fx import fetch_ecb_rates
 from .logging_config import get_logger
 from .models import RawListing, Review
@@ -222,4 +223,106 @@ def run_pipeline(
         fetcher.close()
         store.finish_run(run_id, _now().isoformat(), fx_source, report.channel_status)
         store.close()
+    return report
+
+
+async def scrape_channel_async(
+    cfg: CategoryConfig, channel_id: str, fetcher: AsyncFetcher, raw_dir: Path
+) -> tuple[list[RawListing], dict[str, Any]]:
+    """Async version of scrape_channel."""
+    from .channels import get_adapter
+    from .fetch import BlockedError, FetchError, RobotsDisallowed
+
+    ch = cfg.channels[channel_id]
+    adapter = get_adapter(ch.adapter)
+    currency, language = cfg.currency_of(ch.market), cfg.language_of(ch.market)
+    url: str | None = ch.start_url
+    listings: list[RawListing] = []
+    status: dict[str, Any] = {"status": "ok", "pages": 0, "listings": 0, "via": None, "market": ch.market}
+    seen_urls: set[str] = set()
+
+    try:
+        for page_no in range(1, ch.max_pages + 1):
+            if not url or url in seen_urls:
+                break
+            seen_urls.add(url)
+
+            res = await fetcher.fetch(url, language=language, cache_path=raw_dir / channel_id / f"page-{page_no}.html")
+            page_items = adapter.parse(
+                res.html, channel=channel_id, market=ch.market, currency=currency, rank_offset=len(listings)
+            )
+            log.info("channel_page_fetched", channel=channel_id, page=page_no, listings=len(page_items), via=res.via)
+            status["pages"] += 1
+            status["via"] = res.via
+
+            if not page_items:
+                break
+            listings += page_items
+            url = adapter.next_page_url(res.html, url)
+
+    except BlockedError as exc:
+        status.update(status="blocked", error=str(exc))
+    except RobotsDisallowed as exc:
+        status.update(status="disallowed", error=str(exc))
+    except FetchError as exc:
+        status.update(status="error", error=str(exc))
+    except Exception as exc:
+        log.exception("unexpected_failure", channel=channel_id)
+        status.update(status="error", error=f"{type(exc).__name__}: {exc}")
+
+    if status["status"] == "ok" and not listings:
+        status.update(status="empty", error="page fetched but no products parsed")
+
+    status["listings"] = len(listings)
+    return listings, status
+
+
+async def run_pipeline_async(cfg: CategoryConfig, data_dir: Path, *, channels: list[str] | None = None) -> RunReport:
+    """Async pipeline with concurrent channel scraping."""
+    import asyncio
+
+    from .fetch_async import AsyncFetcher
+    from .store import Store
+
+    started = _now()
+    run_id = new_run_id(started)
+    correlation_id = str(uuid.uuid4())
+    log_bound = get_logger(__name__).bind(correlation_id=correlation_id, run_id=run_id)
+    snapshot_date = started.date().isoformat()
+    raw_dir = data_dir / "raw" / snapshot_date
+    store = Store(data_dir / "radar.sqlite")
+    store.start_run(run_id, snapshot_date, started.isoformat(), cfg.id)
+    report = RunReport(run_id=run_id, snapshot_date=snapshot_date)
+
+    rates, rate_date, fx_source = fetch_ecb_rates()
+    store.save_fx(run_id, rate_date, rates)
+    normalizer = Normalizer(cfg, rates)
+
+    crawl = cfg.crawl
+    fetcher = AsyncFetcher(
+        raw_dir,
+        delay_seconds=float(crawl.get("delay_seconds", 4)),
+        timeout_seconds=float(crawl.get("timeout_seconds", 30)),
+        max_retries=int(crawl.get("max_retries", 2)),
+        respect_robots=bool(crawl.get("respect_robots_txt", True)),
+        user_agent=crawl.get("user_agent"),
+        max_concurrent=3,
+    )
+
+    channels_to_scrape = channels or list(cfg.channels)
+    try:
+
+        async def _scrape_and_store(cid: str) -> None:
+            log_bound.info("channel_start", channel=cid)
+            raws, status = await scrape_channel_async(cfg, cid, fetcher, raw_dir)
+            listings = normalizer.normalize(raws, run_id=run_id, snapshot_date=snapshot_date)
+            status["listings"] = store.replace_listings(run_id, cid, listings)
+            report.channel_status[cid] = status
+            log_bound.info("channel_complete", channel=cid, status=status["status"], listings=status["listings"])
+
+        await asyncio.gather(*[_scrape_and_store(cid) for cid in channels_to_scrape])
+    finally:
+        store.finish_run(run_id, _now().isoformat(), fx_source, report.channel_status)
+        store.close()
+
     return report

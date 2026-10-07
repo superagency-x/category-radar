@@ -3,6 +3,7 @@
 The synthetic generator is used ONLY by tests (and `scripts/sample_db.py` for
 dashboard development). It is never shipped as real market data.
 """
+
 from __future__ import annotations
 
 import random
@@ -34,7 +35,14 @@ MODELS = [
     ("Xiaomi", "Xiaomi Air Fryer Essential MAF13 6l", 48, 6.0, "Heißluftfritteuse"),
 ]
 FX = {"EUR": 1.0, "CHF": 0.94, "PLN": 4.27, "CZK": 24.4, "HUF": 395.0}
-CHANNEL = {"DE": "geizhals_de", "AT": "geizhals_at", "CH": "toppreise_ch", "PL": "ceneo_pl", "CZ": "alza_cz", "HU": "arukereso_hu"}
+CHANNEL = {
+    "DE": "geizhals_de",
+    "AT": "geizhals_at",
+    "CH": "toppreise_ch",
+    "PL": "ceneo_pl",
+    "CZ": "alza_cz",
+    "HU": "arukereso_hu",
+}
 
 
 def synthetic_raw(market: str, seed: int = 0, price_shift: float = 1.0) -> list[RawListing]:
@@ -53,11 +61,24 @@ def synthetic_raw(market: str, seed: int = 0, price_shift: float = 1.0) -> list[
             extra["discount_depth_pct"] = 25.9
         if i % 3 == 0:
             extra["test_score"] = rnd.randint(70, 95)
-        out.append(RawListing(
-            channel=CHANNEL[market], market=market, rank=i, title=title, url=f"https://example.test/{market}/{i}",
-            price=price, currency=cur, offers=rnd.randint(1, 30), rating=round(rnd.uniform(3.8, 5), 2),
-            rating_count=rnd.randint(0, 400), sponsored=(i == 1 and market in ("PL", "CZ")),
-            specs_text=f"Typ: {typ} | Fassungsvermögen: {cap}l", capacity_text=f"{cap}l", power_text="1800W",
-            type_text=typ, extra=extra,
-        ))
+        out.append(
+            RawListing(
+                channel=CHANNEL[market],
+                market=market,
+                rank=i,
+                title=title,
+                url=f"https://example.test/{market}/{i}",
+                price=price,
+                currency=cur,
+                offers=rnd.randint(1, 30),
+                rating=round(rnd.uniform(3.8, 5), 2),
+                rating_count=rnd.randint(0, 400),
+                sponsored=(i == 1 and market in ("PL", "CZ")),
+                specs_text=f"Typ: {typ} | Fassungsvermögen: {cap}l",
+                capacity_text=f"{cap}l",
+                power_text="1800W",
+                type_text=typ,
+                extra=extra,
+            )
+        )
     return out

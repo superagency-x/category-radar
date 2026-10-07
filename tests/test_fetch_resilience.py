@@ -1,9 +1,10 @@
 """Test fetch resilience and error handling."""
-import time
-import httpx
-import pytest
 
-from category_radar.fetch import BlockedError, FetchError, Fetcher, looks_blocked
+import time
+
+import httpx
+
+from category_radar.fetch import Fetcher, looks_blocked
 
 
 def test_looks_blocked_detects_challenges():

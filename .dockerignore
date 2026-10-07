@@ -1,0 +1,14 @@
+.venv
+__pycache__
+*.pyc
+.git
+.gitignore
+.DS_Store
+data/*.sqlite
+data/raw
+data/logs
+htmlcov
+.coverage
+pytest.ini
+.mypy_cache
+.ruff_cache

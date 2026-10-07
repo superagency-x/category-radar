@@ -9,21 +9,28 @@ FX = Path(__file__).parent / "fixtures"
 
 
 def parse(adapter, fixture, market, currency):
-    return get_adapter(adapter).parse((FX / fixture).read_text(encoding="utf-8"),
-                                      channel=f"{adapter}_{market.lower()}", market=market, currency=currency)
+    return get_adapter(adapter).parse(
+        (FX / fixture).read_text(encoding="utf-8"),
+        channel=f"{adapter}_{market.lower()}",
+        market=market,
+        currency=currency,
+    )
 
 
-@pytest.mark.parametrize("raw,dec,expected", [
-    ("€ 159,00", ",", 159.0),
-    ("€ 1.159,90", ",", 1159.9),
-    ("CHF 1'299.90", ".", 1299.9),
-    ("CHF 75.90", ".", 75.9),
-    ("3\xa0998,-", ",", 3998.0),
-    ("29 200 Ft-tól", ",", 29200.0),
-    ("od 1 049,99 zł", ",", 1049.99),
-    ("", ",", None),
-    (None, ",", None),
-])
+@pytest.mark.parametrize(
+    "raw,dec,expected",
+    [
+        ("€ 159,00", ",", 159.0),
+        ("€ 1.159,90", ",", 1159.9),
+        ("CHF 1'299.90", ".", 1299.9),
+        ("CHF 75.90", ".", 75.9),
+        ("3\xa0998,-", ",", 3998.0),
+        ("29 200 Ft-tól", ",", 29200.0),
+        ("od 1 049,99 zł", ",", 1049.99),
+        ("", ",", None),
+        (None, ",", None),
+    ],
+)
 def test_parse_price(raw, dec, expected):
     assert parse_price(raw, decimal=dec) == expected
 
@@ -46,7 +53,10 @@ def test_geizhals():
 
 def test_toppreise():
     items = parse("toppreise", "toppreise.html", "CH", "CHF")
-    assert [i.title for i in items] == ["MEDION MD 11780 (50072992)", "PHILIPS Airfryer 3000 Series, Schwarz (NA330/00)"]
+    assert [i.title for i in items] == [
+        "MEDION MD 11780 (50072992)",
+        "PHILIPS Airfryer 3000 Series, Schwarz (NA330/00)",
+    ]
     assert items[0].price == 75.9 and items[0].offers == 18
     assert items[0].capacity_text == "5l" and items[0].power_text == "1500W"
     assert items[0].brand_hint == "MEDION"
@@ -64,7 +74,9 @@ def test_ceneo():
     assert a.extra["recent_purchases_90d"] == 69
     assert a.capacity_text == "11 l" and a.power_text == "2700 W"
     assert b.price == 1049.99 and b.rating_count == 214
-    nxt = get_adapter("ceneo").next_page_url((FX / "ceneo.html").read_text(), "https://www.ceneo.pl/Frytkownice/Typ:Airfryer.htm")
+    nxt = get_adapter("ceneo").next_page_url(
+        (FX / "ceneo.html").read_text(), "https://www.ceneo.pl/Frytkownice/Typ:Airfryer.htm"
+    )
     assert nxt == "https://www.ceneo.pl/Frytkownice/Typ:Airfryer;0020-30-0-0-1.htm"
 
 
@@ -85,7 +97,9 @@ def test_arukereso_filters_sponsored_and_links():
     assert items[0].sponsored and items[0].price == 34990 and items[0].offers == 6
     assert items[0].external_id == "1321286044" and items[0].brand_hint == "gorenje"
     assert items[1].url.startswith("https://www.arukereso.hu/olajsuto-c4109/philips/")
-    nxt = get_adapter("arukereso").next_page_url((FX / "arukereso.html").read_text(), "https://www.arukereso.hu/olajsuto-c4109/")
+    nxt = get_adapter("arukereso").next_page_url(
+        (FX / "arukereso.html").read_text(), "https://www.arukereso.hu/olajsuto-c4109/"
+    )
     assert nxt.endswith("?start=25")
 
 
@@ -111,5 +125,7 @@ def test_mediamarkt():
     assert a.extra["discount_depth_pct"] == 41.1
     assert a.rating == 4.5
     assert a.rating_count == 2979
-    nxt = get_adapter("mediamarkt").next_page_url("", "https://www.mediamarkt.de/de/search.html?query=heissluftfritteuse")
+    nxt = get_adapter("mediamarkt").next_page_url(
+        "", "https://www.mediamarkt.de/de/search.html?query=heissluftfritteuse"
+    )
     assert "page=2" in nxt

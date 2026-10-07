@@ -1,4 +1,5 @@
 """Comprehensive normalization tests."""
+
 from category_radar.normalize import Normalizer, slug
 
 
