@@ -1,4 +1,5 @@
 """toppreise.ch: Switzerland's leading price-comparison engine (CHF)."""
+
 from __future__ import annotations
 
 import re
@@ -30,23 +31,25 @@ class ToppreiseAdapter(ChannelAdapter):
             ext = re.search(r"-p(\d+)$", href)
             cap = re.search(r"(\d+(?:\.\d+)?)\s*L\b", features)
             power = re.search(r"(\d{3,4})\s*W\b", features)
-            out.append(RawListing(
-                channel=channel,
-                market=market,
-                rank=rank,
-                title=text(name_el),
-                url=urljoin(BASE, href),
-                price=parse_price(text(price_el), decimal="."),
-                currency=currency,
-                external_id=ext.group(1) if ext else None,
-                brand_hint=brand_img.get("alt") if brand_img else None,
-                offers=first_int(text(card.select_one(".offers"))),
-                specs_text=features,
-                capacity_text=f"{cap.group(1)}l" if cap else None,
-                power_text=f"{power.group(1)}W" if power else None,
-                type_text=features.split(",")[0] if features else None,
-                extra={"is_variant": "f_collection" in (card.get("class") or [])},
-            ))
+            out.append(
+                RawListing(
+                    channel=channel,
+                    market=market,
+                    rank=rank,
+                    title=text(name_el),
+                    url=urljoin(BASE, href),
+                    price=parse_price(text(price_el), decimal="."),
+                    currency=currency,
+                    external_id=ext.group(1) if ext else None,
+                    brand_hint=brand_img.get("alt") if brand_img else None,
+                    offers=first_int(text(card.select_one(".offers"))),
+                    specs_text=features,
+                    capacity_text=f"{cap.group(1)}l" if cap else None,
+                    power_text=f"{power.group(1)}W" if power else None,
+                    type_text=features.split(",")[0] if features else None,
+                    extra={"is_variant": "f_collection" in (card.get("class") or [])},
+                )
+            )
         return out
 
     def next_page_url(self, html, current_url):

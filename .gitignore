@@ -12,3 +12,5 @@ data/logs/
 !site/data/radar.json
 .DS_Store
 *.tar.gz
+.env
+.env.local

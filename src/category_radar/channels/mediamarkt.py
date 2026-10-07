@@ -3,10 +3,10 @@
 Shelf signals: shelf rank, retail price, UVP (strikethrough / RRP), discount depth %,
 customer rating (Bazaarvoice verified stars + count), stock and delivery flags.
 """
+
 from __future__ import annotations
 
 import re
-from typing import Optional
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
@@ -25,7 +25,9 @@ class MediaMarktAdapter(ChannelAdapter):
         rank = rank_offset
 
         for card in soup.select('[data-test="mms-product-card"]'):
-            title_el = card.select_one('[data-test="product-title"], [data-test="mms-router-link-product-list-item-link"]')
+            title_el = card.select_one(
+                '[data-test="product-title"], [data-test="mms-router-link-product-list-item-link"]'
+            )
             link_el = card.select_one('a[data-test*="product-list-item-link"], a[data-test*="product-image-wrapper"]')
 
             if not title_el or not link_el:
@@ -75,26 +77,30 @@ class MediaMarktAdapter(ChannelAdapter):
             rating_count = first_int(text(count_el)) if count_el else None
 
             rank += 1
-            out.append(RawListing(
-                channel=channel,
-                market=market,
-                rank=rank,
-                title=title,
-                url=urljoin(BASE, link_el["href"]),
-                price=price,
-                currency=currency,
-                rating=rating,
-                rating_count=rating_count,
-                specs_text=title,
-                extra={
-                    "uvp_eur": uvp,
-                    "discount_depth_pct": round(100 * (uvp - price) / uvp, 1) if (uvp and price and uvp > price) else None,
-                    "retailer": "MediaMarkt",
-                },
-            ))
+            out.append(
+                RawListing(
+                    channel=channel,
+                    market=market,
+                    rank=rank,
+                    title=title,
+                    url=urljoin(BASE, link_el["href"]),
+                    price=price,
+                    currency=currency,
+                    rating=rating,
+                    rating_count=rating_count,
+                    specs_text=title,
+                    extra={
+                        "uvp_eur": uvp,
+                        "discount_depth_pct": round(100 * (uvp - price) / uvp, 1)
+                        if (uvp and price and uvp > price)
+                        else None,
+                        "retailer": "MediaMarkt",
+                    },
+                )
+            )
         return out
 
-    def next_page_url(self, html: str, current_url: str) -> Optional[str]:
+    def next_page_url(self, html: str, current_url: str) -> str | None:
         m = re.search(r"[?&]page=(\d+)", current_url)
         page = int(m.group(1)) if m else 1
         next_page = page + 1

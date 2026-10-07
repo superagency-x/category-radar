@@ -10,23 +10,24 @@ Design points:
   challenges (CAPTCHA / "verify you are human") are NOT bypassed: the channel
   is reported as blocked and skipped.
 """
+
 from __future__ import annotations
 
-import logging
 import time
 import urllib.robotparser
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 from urllib.parse import urlparse
 
 import httpx
 
-log = logging.getLogger(__name__)
+from .logging_config import get_logger
+from .settings import settings
+
+log = get_logger(__name__)
 
 DEFAULT_UA = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/129.0 Safari/537.36"
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36"
 )
 
 ACCEPT_LANGUAGE = {
@@ -65,8 +66,8 @@ class FetchResult:
     url: str
     html: str
     status: int
-    via: str            # "http" | "browser" | "cache"
-    cache_path: Optional[Path] = None
+    via: str  # "http" | "browser" | "cache"
+    cache_path: Path | None = None
 
 
 def looks_blocked(status: int, html: str) -> bool:
@@ -74,7 +75,7 @@ def looks_blocked(status: int, html: str) -> bool:
         return True
     low = html[:50000].lower()
     start = low.find("<title")
-    title = low[start:low.find("</title>", start)] if start >= 0 else ""
+    title = low[start : low.find("</title>", start)] if start >= 0 else ""
     if any(t in title for t in CHALLENGE_TITLES):
         return True
     # Real category pages are large; challenge interstitials are small.
@@ -91,7 +92,7 @@ class Fetcher:
         timeout_seconds: float = 30.0,
         max_retries: int = 2,
         respect_robots: bool = True,
-        user_agent: Optional[str] = None,
+        user_agent: str | None = None,
     ) -> None:
         self.raw_dir = raw_dir
         self.mode = mode
@@ -99,7 +100,7 @@ class Fetcher:
         self.timeout = timeout_seconds
         self.max_retries = max_retries
         self.respect_robots = respect_robots
-        self.user_agent = user_agent or DEFAULT_UA
+        self.user_agent = user_agent or settings.user_agent or DEFAULT_UA
         self._last_hit: dict[str, float] = {}
         self._robots: dict[str, urllib.robotparser.RobotFileParser] = {}
         self._client = httpx.Client(
@@ -139,11 +140,11 @@ class Fetcher:
         return rp.can_fetch(self.user_agent, url)
 
     # -- fetching ---------------------------------------------------------
-    def fetch(self, url: str, *, language: str = "de", cache_path: Optional[Path] = None) -> FetchResult:
+    def fetch(self, url: str, *, language: str = "de", cache_path: Path | None = None) -> FetchResult:
         if not self.allowed(url):
             raise RobotsDisallowed(f"robots.txt disallows {url}")
         host = urlparse(url).netloc
-        result: Optional[FetchResult] = None
+        result: FetchResult | None = None
 
         if self.mode in ("auto", "http"):
             try:
@@ -151,7 +152,7 @@ class Fetcher:
             except BlockedError:
                 if self.mode == "http":
                     raise
-                log.info("HTTP blocked on %s, retrying with headless browser", host)
+                log.info("http_blocked_retry", host=host)
 
         if result is None:
             result = self._fetch_browser(url, host, language)
@@ -164,20 +165,22 @@ class Fetcher:
 
     def _fetch_http(self, url: str, host: str, language: str) -> FetchResult:
         headers = {"Accept-Language": ACCEPT_LANGUAGE.get(language, "en")}
-        last_exc: Optional[Exception] = None
+        last_exc: Exception | None = None
         for attempt in range(self.max_retries + 1):
             self._throttle(host)
+            log.info("http_fetch_attempt", url=url, attempt=attempt + 1, host=host)
             try:
                 r = self._client.get(url, headers=headers)
             except httpx.HTTPError as exc:
                 last_exc = exc
-                time.sleep(2 ** attempt)
+                time.sleep(2**attempt)
                 continue
             if looks_blocked(r.status_code, r.text):
+                log.warning("fetch_blocked", host=host, status=r.status_code, page_size=len(r.text))
                 raise BlockedError(f"{host} answered {r.status_code} / challenge page")
             if r.status_code >= 500:
                 last_exc = FetchError(f"{url} -> HTTP {r.status_code}")
-                time.sleep(2 ** attempt)
+                time.sleep(2**attempt)
                 continue
             if r.status_code >= 400:
                 raise FetchError(f"{url} -> HTTP {r.status_code}")
@@ -223,7 +226,7 @@ class Fetcher:
         if self._pw is not None:
             self._pw.stop()
 
-    def __enter__(self) -> "Fetcher":
+    def __enter__(self) -> Fetcher:
         return self
 
     def __exit__(self, *exc) -> None:

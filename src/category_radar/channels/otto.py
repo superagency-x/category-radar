@@ -4,10 +4,10 @@ Shelf signals: retail price, UVP (strikethrough / was-price) for discount depth,
 rating count, popularity badges ("Sehr beliebt", "Fast ausverkauft"),
 structured spec description.
 """
+
 from __future__ import annotations
 
 import re
-from typing import Optional
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
@@ -80,28 +80,32 @@ class OttoAdapter(ChannelAdapter):
             is_selling_fast = "Fast ausverkauft" in all_txt
 
             rank += 1
-            out.append(RawListing(
-                channel=channel,
-                market=market,
-                rank=rank,
-                title=full_title,
-                url=urljoin(BASE, link_el["href"]),
-                price=price,
-                currency=currency,
-                brand_hint=brand or None,
-                rating=rating,
-                rating_count=rating_count,
-                specs_text=product_title,
-                extra={
-                    "uvp_eur": uvp,
-                    "discount_depth_pct": round(100 * (uvp - price) / uvp, 1) if (uvp and price and uvp > price) else None,
-                    "badge_popular": is_popular,
-                    "badge_low_stock": is_selling_fast,
-                },
-            ))
+            out.append(
+                RawListing(
+                    channel=channel,
+                    market=market,
+                    rank=rank,
+                    title=full_title,
+                    url=urljoin(BASE, link_el["href"]),
+                    price=price,
+                    currency=currency,
+                    brand_hint=brand or None,
+                    rating=rating,
+                    rating_count=rating_count,
+                    specs_text=product_title,
+                    extra={
+                        "uvp_eur": uvp,
+                        "discount_depth_pct": round(100 * (uvp - price) / uvp, 1)
+                        if (uvp and price and uvp > price)
+                        else None,
+                        "badge_popular": is_popular,
+                        "badge_low_stock": is_selling_fast,
+                    },
+                )
+            )
         return out
 
-    def next_page_url(self, html: str, current_url: str) -> Optional[str]:
+    def next_page_url(self, html: str, current_url: str) -> str | None:
         soup = BeautifulSoup(html, "lxml")
         link = soup.select_one('a[rel="next"], [data-qa="san_pagination_next"]')
         if link and link.get("href"):

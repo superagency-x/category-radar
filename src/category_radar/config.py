@@ -1,12 +1,10 @@
 """Loads and validates a category YAML file."""
+
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
-
-import yaml
+from typing import Any
 
 
 class ConfigError(ValueError):
@@ -21,8 +19,8 @@ class ChannelConfig:
     type: str
     start_url: str
     max_pages: int = 1
-    keep_keywords: Optional[str] = None
-    exclude_keywords: Optional[str] = None
+    keep_keywords: str | None = None
+    exclude_keywords: str | None = None
 
 
 @dataclass
@@ -38,7 +36,7 @@ class CategoryConfig:
     claims: dict[str, dict[str, str]]
     needs: dict[str, dict[str, str]]
     reviews: dict[str, Any] = field(default_factory=dict)
-    path: Optional[Path] = None
+    path: Path | None = None
 
     def currency_of(self, market: str) -> str:
         return self.markets[market]["currency"]
@@ -48,52 +46,48 @@ class CategoryConfig:
 
 
 def load_config(path: str | Path) -> CategoryConfig:
+    """Load config with Pydantic validation first, then convert to legacy format."""
+    from .config_schema import load_config_schema
+
+    # Validate with Pydantic schema
+    try:
+        schema = load_config_schema(path)
+    except (ValueError, FileNotFoundError) as e:
+        raise ConfigError(str(e)) from e
+
+    # Convert to legacy dataclass format for backward compatibility
     path = Path(path)
-    if not path.exists():
-        raise ConfigError(f"Config file not found: {path}")
-    raw = yaml.safe_load(path.read_text(encoding="utf-8"))
 
-    for key in ("category", "markets", "channels", "claims", "needs"):
-        if key not in raw:
-            raise ConfigError(f"{path}: missing top-level section '{key}'")
+    markets = {k: {"name": v.name, "currency": v.currency, "language": v.language} for k, v in schema.markets.items()}
 
-    markets = raw["markets"]
-    channels: dict[str, ChannelConfig] = {}
-    for cid, c in raw["channels"].items():
-        if c.get("market") not in markets:
-            raise ConfigError(f"channel {cid}: unknown market {c.get('market')!r}")
-        if "start_url" not in c:
-            raise ConfigError(f"channel {cid}: missing start_url")
+    channels = {}
+    for cid, ch in schema.channels.items():
         channels[cid] = ChannelConfig(
             id=cid,
-            market=c["market"],
-            adapter=c.get("adapter", cid.split("_")[0]),
-            type=c.get("type", "price_comparison"),
-            start_url=c["start_url"],
-            max_pages=int(c.get("max_pages", 1)),
-            keep_keywords=c.get("keep_keywords"),
-            exclude_keywords=c.get("exclude_keywords"),
+            market=ch.market,
+            adapter=ch.adapter,
+            type=ch.type.value,
+            start_url=str(ch.start_url),
+            max_pages=ch.max_pages,
+            keep_keywords=ch.keep_keywords,
+            exclude_keywords=ch.exclude_keywords,
         )
 
-    for section in ("claims", "needs"):
-        for key, spec in raw[section].items():
-            try:
-                re.compile(spec["pattern"])
-            except re.error as exc:  # fail fast on a broken regex in YAML
-                raise ConfigError(f"{section}.{key}: invalid regex: {exc}") from exc
+    claims = {k: {"label": v.label, "pattern": v.pattern} for k, v in schema.claims.items()}
+    needs = {k: {"label": v.label, "pattern": v.pattern} for k, v in schema.needs.items()}
+    price_tiers = [{"name": t.name, "max_pct": t.max_pct} for t in schema.price_tiers]
 
-    cat = raw["category"]
     return CategoryConfig(
-        id=cat["id"],
-        name=cat["name"],
-        base_currency=cat.get("base_currency", "EUR"),
-        crawl=raw.get("crawl", {}),
+        id=schema.id,
+        name=schema.name,
+        base_currency=schema.base_currency,
+        crawl=schema.crawl.model_dump(),
         markets=markets,
         channels=channels,
-        brands=raw.get("brands", {}),
-        price_tiers=raw.get("price_tiers", []),
-        claims=raw["claims"],
-        needs=raw["needs"],
-        reviews=raw.get("reviews", {}),
+        brands=schema.brands,
+        price_tiers=price_tiers,
+        claims=claims,
+        needs=needs,
+        reviews=schema.reviews.model_dump(),
         path=path,
     )

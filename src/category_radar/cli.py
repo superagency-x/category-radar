@@ -1,19 +1,19 @@
 """Command-line interface.
 
-  radar run        scrape all channels, store, analyse, write dashboard data
-  radar doctor     health-check every channel (robots, fetch, parse) without storing
-  radar export     rebuild dashboard data from the database
-  radar reparse    re-parse saved HTML of a past day (no network)
-  radar serve      open the dashboard locally
-  radar publish    commit + push the dashboard data (GitHub Pages redeploys)
-  radar channels   list configured channels and adapters
+radar run        scrape all channels, store, analyse, write dashboard data
+radar doctor     health-check every channel (robots, fetch, parse) without storing
+radar export     rebuild dashboard data from the database
+radar reparse    re-parse saved HTML of a past day (no network)
+radar serve      open the dashboard locally
+radar publish    commit + push the dashboard data (GitHub Pages redeploys)
+radar channels   list configured channels and adapters
 """
+
 from __future__ import annotations
 
 import argparse
 import functools
 import http.server
-import logging
 import socketserver
 import sys
 import webbrowser
@@ -23,11 +23,14 @@ from .channels import available_adapters, get_adapter
 from .config import ConfigError, load_config
 from .export import build_bundle, write_csvs, write_executive_brief, write_site_data
 from .fetch import BlockedError, Fetcher, FetchError, RobotsDisallowed
+from .health import app as health_app
+from .logging_config import configure_logging, get_logger
 from .pipeline import run_pipeline
 from .store import Store
 
 ROOT = Path.cwd()
 STATUS_ICON = {"ok": "✅", "empty": "⚠️ ", "blocked": "⛔", "disallowed": "🚫", "error": "❌", "missing": "…"}
+log = get_logger(__name__)
 
 
 def _common(p: argparse.ArgumentParser) -> None:
@@ -46,8 +49,10 @@ def _export(cfg, data_dir: Path, site_dir: Path) -> None:
     path = write_site_data(bundle, site_dir)
     csvs = write_csvs(bundle, data_dir / "exports")
     md_brief, html_brief = write_executive_brief(bundle, data_dir / "exports")
-    print(f"Dashboard data   → {path}  ({bundle['meta']['counts']['listings']} listings, "
-          f"{bundle['meta']['counts']['reviews']} reviews, {bundle['meta']['counts']['snapshots']} snapshot(s))")
+    print(
+        f"Dashboard data   → {path}  ({bundle['meta']['counts']['listings']} listings, "
+        f"{bundle['meta']['counts']['reviews']} reviews, {bundle['meta']['counts']['snapshots']} snapshot(s))"
+    )
     for c in csvs:
         print(f"CSV              → {c}")
     print(f"Executive Brief  → {md_brief}")
@@ -61,12 +66,13 @@ def cmd_run(args, cfg) -> int:
         if unknown:
             print(f"Unknown channel(s): {', '.join(sorted(unknown))}")
             return 2
-    report = run_pipeline(cfg, Path(args.data_dir), channels=channels, with_reviews=not args.no_reviews,
-                          progress=print)
+    report = run_pipeline(cfg, Path(args.data_dir), channels=channels, with_reviews=not args.no_reviews, progress=print)
     print(f"\nRun {report.run_id}: {report.total_listings} listings, {report.reviews} reviews")
     for cid, s in report.channel_status.items():
-        print(f"  {STATUS_ICON.get(s['status'], '?')} {cid:<14} {s['status']:<10} {s['listings']:>4} listings  "
-              f"{s.get('pages', 0)} page(s) via {s.get('via')}")
+        print(
+            f"  {STATUS_ICON.get(s['status'], '?')} {cid:<14} {s['status']:<10} {s['listings']:>4} listings  "
+            f"{s.get('pages', 0)} page(s) via {s.get('via')}"
+        )
     if not args.no_export:
         _export(cfg, Path(args.data_dir), Path(args.site_dir))
     return 0 if report.total_listings else 1
@@ -106,15 +112,21 @@ def cmd_doctor(args, cfg) -> int:
     crawl = cfg.crawl
     tmp = Path(args.data_dir) / "raw" / "_doctor"
     worst = 0
-    with Fetcher(tmp, mode=crawl.get("fetcher", "auto"), delay_seconds=float(crawl.get("delay_seconds", 4)),
-                 respect_robots=bool(crawl.get("respect_robots_txt", True)), user_agent=crawl.get("user_agent")) as f:
+    with Fetcher(
+        tmp,
+        mode=crawl.get("fetcher", "auto"),
+        delay_seconds=float(crawl.get("delay_seconds", 4)),
+        respect_robots=bool(crawl.get("respect_robots_txt", True)),
+        user_agent=crawl.get("user_agent"),
+    ) as f:
         for cid, ch in cfg.channels.items():
             if args.channels and cid not in args.channels.split(","):
                 continue
             try:
                 res = f.fetch(ch.start_url, language=cfg.language_of(ch.market), cache_path=tmp / f"{cid}.html")
-                items = get_adapter(ch.adapter).parse(res.html, channel=cid, market=ch.market,
-                                                      currency=cfg.currency_of(ch.market))
+                items = get_adapter(ch.adapter).parse(
+                    res.html, channel=cid, market=ch.market, currency=cfg.currency_of(ch.market)
+                )
                 priced = sum(1 for i in items if i.price)
                 status = "ok" if items and priced >= len(items) * 0.8 else "empty"
                 detail = f"{len(items)} products, {priced} with price, via {res.via}"
@@ -165,6 +177,7 @@ def cmd_publish(args, cfg) -> int:
         print("This folder is not a git repository yet. See README → 'Publish to radar.saralogy.com'.")
         return 2
     import json
+
     date = json.loads(bundle.read_text(encoding="utf-8"))["meta"]["snapshot_date"]
     git("add", str(bundle))
     if git("diff", "--cached", "--quiet").returncode == 0:
@@ -183,6 +196,15 @@ def cmd_channels(args, cfg) -> int:
     print(f"Category: {cfg.name}  ({cfg.path})\nAdapters available: {', '.join(available_adapters())}\n")
     for cid, ch in cfg.channels.items():
         print(f"  {cid:<14} {ch.market}  {ch.adapter:<10} {ch.type:<17} max {ch.max_pages} page(s)  {ch.start_url}")
+    return 0
+
+
+def cmd_health(args, cfg) -> int:
+    """Start health check server."""
+    import uvicorn
+
+    log.info("health_server_start", port=args.port)
+    uvicorn.run(health_app, host="127.0.0.1", port=args.port, log_level="info")
     return 0
 
 
@@ -229,9 +251,14 @@ def main(argv: list[str] | None = None) -> int:
     _common(p)
     p.set_defaults(func=cmd_channels)
 
+    p = sub.add_parser("health", help="start health check server for monitoring")
+    _common(p)
+    p.add_argument("--port", type=int, default=8765)
+    p.set_defaults(func=cmd_health)
+
     args = parser.parse_args(argv)
-    logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,
-                        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    configure_logging(Path(args.data_dir), args.verbose)
+    log.info("cli_start", cmd=args.cmd, config=args.config)
     try:
         cfg = load_config(args.config)
     except ConfigError as exc:
