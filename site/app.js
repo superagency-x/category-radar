@@ -579,6 +579,22 @@
             ? "High-performance concurrent scrape across channels via httpx."
             : "Sequential scrape across channels with delay throttling.";
           break;
+        case "battlecard":
+          cmd = "radar battlecard --brand Ninja --competitor Philips --market DE" + (isVerbose ? " -v" : "");
+          note = "Generate head-to-head commercial sales battlecard (price index, claim matrix, sales rep pitch hooks).";
+          break;
+        case "alert":
+          cmd = "radar alert --min-severity medium" + (isVerbose ? " -v" : "");
+          note = "Scan market history for sudden price drops, cross-border arbitrage spreads, and rank surges.";
+          break;
+        case "jbp":
+          cmd = "radar jbp --retailer mediamarkt_de --benchmark geizhals_de" + (isVerbose ? " -v" : "");
+          note = "Analyze retailer assortment gaps and whitespace feature lift for Joint Business Planning meetings.";
+          break;
+        case "categories":
+          cmd = "radar categories";
+          note = "List all configured category profiles and active status.";
+          break;
         case "report":
           cmd = "radar report" + (isVerbose ? " -v" : "");
           note = "Display terminal executive intelligence report and export HTML briefing.";
@@ -673,6 +689,12 @@
     });
     $("#btn-probe-ready")?.addEventListener("click", () => {
       interrogate("http://127.0.0.1:8765/health/ready", "/health/ready", "Readiness Probe");
+    });
+    $("#btn-probe-alerts")?.addEventListener("click", () => {
+      interrogate("/api/v1/alerts", "http://127.0.0.1:8000/api/v1/alerts", "GTM Alerts");
+    });
+    $("#btn-probe-battlecard")?.addEventListener("click", () => {
+      interrogate("/api/v1/battlecards?brand=Ninja&market=DE", "http://127.0.0.1:8000/api/v1/battlecards?brand=Ninja&market=DE", "Battlecard API");
     });
     btnClear?.addEventListener("click", () => {
       outputWrap.hidden = true;

@@ -53,7 +53,9 @@ class ChannelAdapter(ABC):
         soup = BeautifulSoup(html, "lxml")
         el = soup.select_one('link[rel="next"], a[rel="next"]')
         if el and el.get("href"):
-            return urljoin(current_url, el["href"])
+            href = el["href"]
+            if isinstance(href, str):
+                return urljoin(current_url, href)
         return None
 
 

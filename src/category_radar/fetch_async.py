@@ -48,6 +48,8 @@ class AsyncFetcher:
         self.max_concurrent = max_concurrent
         self._last_hit: dict[str, float] = {}
         self._robots: dict[str, urllib.robotparser.RobotFileParser] = {}
+        self._robots_lock = asyncio.Lock()
+        self._host_locks: dict[str, asyncio.Lock] = {}
         self._semaphore = asyncio.Semaphore(max_concurrent)
 
     async def _throttle(self, host: str) -> None:
@@ -71,13 +73,13 @@ class AsyncFetcher:
             )
 
         async with self._semaphore:
-            if self.respect_robots and not self._allowed(url):
+            if self.respect_robots and not await self._allowed(url):
                 from .fetch import RobotsDisallowed
 
                 raise RobotsDisallowed(f"robots.txt disallows {url}")
 
             host = urlparse(url).netloc
-            await self._throttle(host)
+            host_lock = self._host_locks.setdefault(host, asyncio.Lock())
 
             headers = {
                 "User-Agent": self.user_agent,
@@ -85,64 +87,93 @@ class AsyncFetcher:
                 "Accept-Language": ACCEPT_LANGUAGE.get(language, "en"),
             }
 
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                for attempt in range(self.max_retries + 1):
-                    try:
-                        response = await client.get(url, headers=headers, follow_redirects=True)
+            async with host_lock:
+                await self._throttle(host)
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    for attempt in range(self.max_retries + 1):
+                        try:
+                            response = await client.get(url, headers=headers, follow_redirects=True)
 
-                        if looks_blocked(response.status_code, response.text):
-                            from .fetch import BlockedError
+                            if looks_blocked(response.status_code, response.text):
+                                from .fetch import BlockedError
 
-                            raise BlockedError(f"{host} answered {response.status_code} / challenge page")
+                                raise BlockedError(f"{host} answered {response.status_code} / challenge page")
 
-                        if response.status_code >= 500:
+                            if response.status_code >= 500:
+                                if attempt == self.max_retries:
+                                    from .fetch import FetchError
+
+                                    raise FetchError(f"{url} -> HTTP {response.status_code} after retries")
+                                await asyncio.sleep(2**attempt)
+                                continue
+
+                            if response.status_code >= 400:
+                                from .fetch import FetchError
+
+                                raise FetchError(f"{url} -> HTTP {response.status_code}")
+
+                            result = FetchResult(
+                                url=str(response.url),
+                                html=response.text,
+                                status=response.status_code,
+                                via="http",
+                            )
+
+                            if cache_path:
+                                cache_path.parent.mkdir(parents=True, exist_ok=True)
+                                cache_path.write_text(result.html, encoding="utf-8")
+                                result.cache_path = cache_path
+
+                            return result
+
+                        except httpx.HTTPError as exc:
+                            if attempt == self.max_retries:
+                                from .fetch import FetchError
+
+                                raise FetchError(f"{url}: giving up after retries ({exc})") from exc
                             await asyncio.sleep(2**attempt)
-                            continue
-
-                        if response.status_code >= 400:
-                            from .fetch import FetchError
-
-                            raise FetchError(f"{url} -> HTTP {response.status_code}")
-
-                        result = FetchResult(
-                            url=str(response.url),
-                            html=response.text,
-                            status=response.status_code,
-                            via="http",
-                        )
-
-                        if cache_path:
-                            cache_path.parent.mkdir(parents=True, exist_ok=True)
-                            cache_path.write_text(result.html, encoding="utf-8")
-                            result.cache_path = cache_path
-
-                        return result
-
-                    except httpx.HTTPError as exc:
-                        if attempt == self.max_retries:
-                            from .fetch import FetchError
-
-                            raise FetchError(f"{url}: giving up after retries ({exc})") from exc
-                        await asyncio.sleep(2**attempt)
         raise RuntimeError("fetch failed without returning or raising")
 
-    def _allowed(self, url: str) -> bool:
-        """Check robots.txt."""
+    async def _allowed(self, url: str) -> bool:
+        """Check robots.txt without blocking the event loop; deny on policy-fetch errors."""
         parts = urlparse(url)
         base = f"{parts.scheme}://{parts.netloc}"
         rp = self._robots.get(base)
         if rp is None:
-            rp = urllib.robotparser.RobotFileParser()
-            try:
-                r = httpx.get(base + "/robots.txt", timeout=10.0)
-                rp.parse(r.text.splitlines() if r.status_code == 200 else [])
-            except Exception:
-                rp.parse([])
-            self._robots[base] = rp
+            async with self._robots_lock:
+                rp = self._robots.get(base)
+                if rp is None:
+                    rp = urllib.robotparser.RobotFileParser()
+                    robots_url = base + "/robots.txt"
+                    rp.set_url(robots_url)
+                    try:
+                        async with httpx.AsyncClient(timeout=10.0, follow_redirects=True) as client:
+                            response = await client.get(robots_url, headers={"User-Agent": self.user_agent})
+                    except httpx.HTTPError as exc:
+                        from .fetch import FetchError
+
+                        raise FetchError(f"Could not check robots.txt for {base}: {exc}") from exc
+
+                    if response.status_code == 404:
+                        # No robots file is published; there are no crawl restrictions to apply.
+                        rp.parse([])
+                    elif response.status_code in (401, 403):
+                        from .fetch import RobotsDisallowed
+
+                        raise RobotsDisallowed(
+                            f"Cannot confirm crawl permission for {base}: robots.txt returned {response.status_code}"
+                        )
+                    elif response.status_code >= 400:
+                        from .fetch import FetchError
+
+                        raise FetchError(f"Could not check robots.txt for {base}: HTTP {response.status_code}")
+                    else:
+                        rp.parse(response.text.splitlines())
+                    self._robots[base] = rp
         return rp.can_fetch(self.user_agent, url)
 
     async def fetch_all(self, urls: list[tuple[str, str]]) -> list[FetchResult]:
         """Fetch multiple URLs concurrently."""
         tasks = [self.fetch(url, language=lang) for url, lang in urls]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        return [r for r in results if not isinstance(r, Exception)]
+        return [r for r in results if isinstance(r, FetchResult)]

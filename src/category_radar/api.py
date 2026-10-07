@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from .config import load_config
+from .config import CategoryConfig, load_config
 from .export import build_bundle
 from .health import HealthResponse, health_check, readiness_check
 from .logging_config import get_logger
@@ -17,6 +17,7 @@ log = get_logger(__name__)
 
 DATA_DIR = "data"
 CONFIG_PATH = "config/airfryer.yaml"
+CONFIG: CategoryConfig | None = None
 
 
 class MarketStats(BaseModel):
@@ -40,9 +41,8 @@ class BrandStats(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global CONFIG, DATA_DIR
+    global CONFIG
     CONFIG = load_config(CONFIG_PATH)
-    DATA_DIR = "data"
     yield
 
 
@@ -178,6 +178,48 @@ async def get_brands(market: str | None = None) -> list[BrandStats]:
                 )
 
         return brands
+    finally:
+        store.close()
+
+
+@app.get("/api/v1/battlecards")
+async def get_battlecard(brand: str = Query(...), competitor: str | None = None, market: str = "DE") -> dict:
+    """Generate on-demand competitor battlecard."""
+    store = Store(f"{DATA_DIR}/radar.sqlite")
+    try:
+        run_id = store.latest_run_id()
+        if not run_id:
+            raise HTTPException(status_code=404, detail="No data available")
+        rows = store.listings(run_id)
+        cfg = load_config(CONFIG_PATH)
+        from .battlecards import generate_battlecard
+
+        res = generate_battlecard(rows, brand=brand, competitor=competitor, market=market, cfg=cfg)
+        if "error" in res:
+            raise HTTPException(status_code=400, detail=res["error"])
+        return res
+    finally:
+        store.close()
+
+
+@app.get("/api/v1/alerts")
+async def get_alerts(min_severity: str = "medium") -> list[dict]:
+    """Retrieve market early warning signals and anomaly alerts."""
+    from dataclasses import asdict
+
+    store = Store(f"{DATA_DIR}/radar.sqlite")
+    try:
+        run_id = store.latest_run_id()
+        if not run_id:
+            raise HTTPException(status_code=404, detail="No data available")
+        latest = store.listings(run_id)
+        history = store.listings()
+        cfg = load_config(CONFIG_PATH)
+        from .alerts import AlertSeverity, detect_alerts
+
+        sev = AlertSeverity(min_severity) if min_severity in [s.value for s in AlertSeverity] else AlertSeverity.MEDIUM
+        alerts = detect_alerts(latest, history, cfg, min_severity=sev)
+        return [asdict(a) for a in alerts]
     finally:
         store.close()
 

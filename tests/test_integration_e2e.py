@@ -17,17 +17,19 @@ def test_full_pipeline_integration(tmp_path):
 
     # Pre-populate raw html cache for geizhals_de to guarantee determinism
     today = datetime.now(timezone.utc).date().isoformat()
-    raw_dir = tmp_path / "raw" / today / "geizhals_de"
-    raw_dir.mkdir(parents=True, exist_ok=True)
+    date_dir = tmp_path / "raw" / today
+    ch_dir = date_dir / "geizhals_de"
+    ch_dir.mkdir(parents=True, exist_ok=True)
     fx_path = Path(__file__).parent / "fixtures" / "geizhals.html"
-    (raw_dir / "page-1.html").write_text(fx_path.read_text(encoding="utf-8"), encoding="utf-8")
+    (ch_dir / "page-1.html").write_text(fx_path.read_text(encoding="utf-8"), encoding="utf-8")
 
-    # Run pipeline with a single channel
+    # Run pipeline with a single channel using cached fixture
     report = run_pipeline(
         cfg,
         tmp_path,
         channels=["geizhals_de"],
         with_reviews=False,
+        offline_raw_dir=date_dir,
         progress=lambda x: None,
     )
 

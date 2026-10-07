@@ -9,13 +9,14 @@ To introduce a new retailer or price comparison engine:
    from .base import ChannelAdapter, register
    from ..models import RawListing
 
+
    @register("my_retailer")
    class MyRetailerAdapter(ChannelAdapter):
-       def parse(self, html: str, *, channel: str, market: str, currency: str, rank_offset: int = 0) -> list[RawListing]:
-           ...
+       def parse(
+           self, html: str, *, channel: str, market: str, currency: str, rank_offset: int = 0
+       ) -> list[RawListing]: ...
 
-       def next_page_url(self, html: str, current_url: str) -> str | None:
-           ...
+       def next_page_url(self, html: str, current_url: str) -> str | None: ...
    ```
 
 2. **Register in Configuration**:

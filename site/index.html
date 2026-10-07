@@ -260,6 +260,8 @@
             <button id="btn-probe-health" class="btn-action">🩺 Ping Health Probe (:8765 or /health)</button>
             <button id="btn-probe-api" class="btn-action">🌐 Ping REST API (/api/v1)</button>
             <button id="btn-probe-ready" class="btn-action">🛡️ Check Readiness Probe</button>
+            <button id="btn-probe-alerts" class="btn-action">🚨 Fetch GTM Alerts</button>
+            <button id="btn-probe-battlecard" class="btn-action">🎯 Fetch Sample Battlecard</button>
           </div>
           <div id="probe-output-wrap" class="probe-output-wrap" hidden>
             <div class="probe-output-head">
@@ -281,11 +283,15 @@
                 <select id="builder-action">
                   <option value="doctor">radar doctor (Verify scrapers &amp; channels)</option>
                   <option value="run">radar run (Collect shelf data &amp; analyze)</option>
+                  <option value="battlecard">radar battlecard (Generate commercial sales battlecard)</option>
+                  <option value="alert">radar alert (Autonomous GTM early warnings &amp; webhooks)</option>
+                  <option value="jbp">radar jbp (Retailer assortment gap analysis)</option>
                   <option value="report">radar report (Generate executive brief)</option>
                   <option value="api">radar api (Start FastAPI REST service)</option>
                   <option value="health">radar health (Start monitoring daemon)</option>
                   <option value="serve">radar serve (Start dashboard web server)</option>
                   <option value="export">radar export (Rebuild JSON &amp; CSVs)</option>
+                  <option value="categories">radar categories (List category profiles)</option>
                   <option value="migrate">radar migrate (Run Alembic migrations)</option>
                   <option value="mkdocs">mkdocs serve (Serve documentation site)</option>
                   <option value="pytest">pytest (Run test suite &amp; coverage)</option>
@@ -417,7 +423,7 @@
               <code>curl -s http://127.0.0.1:8765/health | jq .</code>
               <button class="btn-copy" data-copy="curl -s http://127.0.0.1:8765/health | jq .">📋 Copy</button>
             </div>
-            <p class="hint-small">Monitors SQLite database size, last run completion status, and disk space.</p>
+            <p class="hint-small">Monitors SQLite database size, last run completion status, and free disk capacity.</p>
           </div>
 
           <div class="playbook-item">

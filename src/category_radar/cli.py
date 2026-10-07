@@ -184,7 +184,7 @@ def cmd_serve(args, cfg) -> int:
 
 def cmd_publish(args, cfg) -> int:
     """Commit the exported dashboard bundle and push; the Pages workflow deploys it."""
-    import subprocess
+    import subprocess  # nosec B404
 
     bundle = Path(args.site_dir) / "data" / "radar.json"
     if not bundle.exists():
@@ -192,7 +192,7 @@ def cmd_publish(args, cfg) -> int:
         return 2
 
     def git(*a: str) -> subprocess.CompletedProcess:
-        return subprocess.run(["git", *a], capture_output=True, text=True)
+        return subprocess.run(["git", *a], capture_output=True, text=True)  # nosec B603 B607
 
     if git("rev-parse", "--is-inside-work-tree").returncode != 0:
         print("This folder is not a git repository yet. See README → 'Publish to radar.saralogy.com'.")
@@ -231,12 +231,12 @@ def cmd_health(args, cfg) -> int:
 
 def cmd_migrate(args, cfg) -> int:
     """Run database migrations."""
-    import subprocess
+    import subprocess  # nosec B404
     import sys
 
     alembic_bin = Path(sys.executable).parent / "alembic"
     cmd = [str(alembic_bin) if alembic_bin.exists() else "alembic", "upgrade", "head"]
-    result = subprocess.run(cmd, cwd=Path.cwd())
+    result = subprocess.run(cmd, cwd=Path.cwd())  # nosec B603
     return result.returncode
 
 
@@ -248,6 +248,158 @@ def cmd_api(args, cfg) -> int:
 
     log.info("api_server_start", port=args.port)
     uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="info")
+    return 0
+
+
+def cmd_battlecard(args, cfg) -> int:
+    """Generate and display commercial sales battlecard."""
+    store = Store(Path(args.data_dir) / "radar.sqlite")
+    try:
+        run_id = store.latest_run_id()
+        if not run_id:
+            print("No data in database. Run `radar run` first.")
+            return 2
+        rows = store.listings(run_id)
+    finally:
+        store.close()
+
+    from .battlecards import export_battlecard, generate_battlecard
+
+    card = generate_battlecard(rows, brand=args.brand, competitor=args.competitor, market=args.market, cfg=cfg)
+    if "error" in card:
+        print(f"Error: {card['error']}")
+        return 1
+
+    s = card["summary"]
+    print("\n=======================================================")
+    print(f"🎯 SALES BATTLECARD: {card['brand']} vs {card['competitor']} ({card['market']} Market)")
+    print("=======================================================")
+    print(
+        f"Price Benchmark:      {card['brand']} €{s['brand_median_eur']} vs {card['competitor']} €{s['competitor_median_eur']} ({s['price_gap_pct']:+}%)"
+    )
+    print(
+        f"Brand Price Index:    {card['brand']} idx {s['brand_price_index']} vs {card['competitor']} idx {s['competitor_price_index']} (100 = market median)"
+    )
+    print(
+        f"Visibility Share:     {card['brand']} {s['brand_visibility_share']}% vs {card['competitor']} {s['competitor_visibility_share']}%"
+    )
+    print(
+        f"Customer Rating:      {card['brand']} {s['brand_avg_rating'] or '–'}★ vs {card['competitor']} {s['competitor_avg_rating'] or '–'}★"
+    )
+    if s["brand_avg_test_score"] or s["competitor_avg_test_score"]:
+        print(
+            f"Stiftung Warentest:   {card['brand']} {s['brand_avg_test_score'] or '–'}/100 vs {card['competitor']} {s['competitor_avg_test_score'] or '–'}/100"
+        )
+
+    print("\n🎯 KEY COMMERCIAL PITCH HOOKS:")
+    for h in card["sales_hooks"]:
+        print(f"  • {h}")
+
+    print("\n✨ PRODUCT & SPEC ADVANTAGES:")
+    for a in card["advantages"] or ["No critical gap."]:
+        print(f"  + {a}")
+
+    print("\n⚠️ COMPETITOR VULNERABILITIES & COUNTERS:")
+    for v in card["vulnerabilities"] or ["Evenly matched."]:
+        print(f"  - {v}")
+
+    export_path = export_battlecard(card, Path(args.data_dir) / "exports")
+    try:
+        import shutil
+
+        site_data = Path(args.site_dir) / "data"
+        site_data.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(export_path, site_data / export_path.name)
+    except Exception as exc:
+        log.debug("battlecard_site_copy_skipped", error=str(exc))
+
+    print(f"\n[Battlecard written: {export_path}]")
+    return 0
+
+
+def cmd_alert(args, cfg) -> int:
+    """Run autonomous market anomaly detection and dispatch alerts."""
+    store = Store(Path(args.data_dir) / "radar.sqlite")
+    try:
+        run_id = store.latest_run_id()
+        if not run_id:
+            print("No data in database. Run `radar run` first.")
+            return 2
+        latest = store.listings(run_id)
+        history = store.listings()
+    finally:
+        store.close()
+
+    from .alerts import AlertSeverity, detect_alerts, dispatch_webhook, format_alerts_markdown
+    from .settings import settings
+
+    min_sev = AlertSeverity(args.min_severity)
+    alerts = detect_alerts(latest, history, cfg, min_severity=min_sev)
+    bulletin = format_alerts_markdown(alerts)
+    print(bulletin)
+
+    webhook_url = (
+        args.webhook or getattr(settings, "alert_webhook_url", None) or getattr(settings, "slack_webhook_url", None)
+    )
+    if webhook_url:
+        ok = dispatch_webhook(alerts, webhook_url)
+        print(f"\n[Webhook dispatch: {'✅ Success' if ok else '❌ Failed'} -> {webhook_url}]")
+    return 0
+
+
+def cmd_jbp(args, cfg) -> int:
+    """Generate Joint Business Planning retailer assortment gap analysis."""
+    store = Store(Path(args.data_dir) / "radar.sqlite")
+    try:
+        run_id = store.latest_run_id()
+        if not run_id:
+            print("No data in database. Run `radar run` first.")
+            return 2
+        rows = store.listings(run_id)
+    finally:
+        store.close()
+
+    from .assortment import analyze_retailer_assortment_gap
+
+    gap = analyze_retailer_assortment_gap(rows, args.retailer, args.benchmark, cfg=cfg)
+    if "error" in gap:
+        print(f"Error: {gap['error']}")
+        return 1
+
+    print("\n=======================================================")
+    print(f"🏬 RETAILER JBP ASSORTMENT GAP: {args.retailer} vs {args.benchmark}")
+    print("=======================================================")
+    print(f"Listings tracked:     Retailer: {gap['retailer_listings']} | Benchmark: {gap['benchmark_listings']}")
+    print(f"Missing Top-20 SKUs:  {gap['missing_top20_count']} best-selling models absent from retailer shelf")
+
+    print("\n🎯 JBP NEGOTIATION TALKING POINTS:")
+    for hook in gap["jbp_pitch_hooks"]:
+        print(f"  • {hook}")
+
+    if gap["feature_whitespace"]:
+        print("\n💡 HIGH-YIELD FEATURE WHITESPACES:")
+        for ws in gap["feature_whitespace"]:
+            print(
+                f"  + {ws['label']}: Market Lift {ws['market_lift']}x vs Retailer Share {ws['retailer_shelf_share']}% (Deficit: {ws['gap_pct']}%)"
+            )
+
+    return 0
+
+
+def cmd_categories(args, cfg) -> int:
+    """List available category configurations."""
+    cfg_dir = Path("config")
+    files = sorted(cfg_dir.glob("*.yaml")) if cfg_dir.exists() else []
+    print(f"Available Category Profiles ({len(files)} configured):")
+    for f in files:
+        try:
+            c = load_config(f)
+            active_marker = " (active)" if str(f) == args.config else ""
+            print(
+                f"  • {c.id:<14} '{c.name}' [{len(c.markets)} markets, {len(c.channels)} channels] ({f}){active_marker}"
+            )
+        except Exception:
+            print(f"  • {f.stem:<14} (syntax error in {f})")
     return 0
 
 
@@ -308,6 +460,36 @@ def main(argv: list[str] | None = None) -> int:
     _common(p)
     p.add_argument("--port", type=int, default=8000)
     p.set_defaults(func=cmd_api)
+
+    p = sub.add_parser("battlecard", help="generate commercial competitor battlecard")
+    _common(p)
+    p.add_argument("--brand", required=True, help="focus brand name (e.g. Ninja, Philips, Cosori)")
+    p.add_argument("--competitor", help="competitor brand name (defaults to market leader)")
+    p.add_argument("--market", default="DE", help="market code (DE, AT, CH, PL, CZ, HU)")
+    p.set_defaults(func=cmd_battlecard)
+
+    p = sub.add_parser("alert", help="run autonomous GTM anomaly detection and dispatch alerts")
+    _common(p)
+    p.add_argument("--webhook", help="Slack, Discord, or Teams webhook URL")
+    p.add_argument(
+        "--min-severity",
+        default="medium",
+        choices=["critical", "high", "medium", "info"],
+        help="minimum alert severity threshold",
+    )
+    p.set_defaults(func=cmd_alert)
+
+    p = sub.add_parser("jbp", help="generate Joint Business Planning retailer assortment gap analysis")
+    _common(p)
+    p.add_argument(
+        "--retailer", default="mediamarkt_de", help="retailer channel ID (e.g. mediamarkt_de, otto_de, alza_cz)"
+    )
+    p.add_argument("--benchmark", default="geizhals_de", help="benchmark comparison engine channel ID")
+    p.set_defaults(func=cmd_jbp)
+
+    p = sub.add_parser("categories", help="list configured category profiles")
+    _common(p)
+    p.set_defaults(func=cmd_categories)
 
     args = parser.parse_args(argv)
     configure_logging(Path(args.data_dir), args.verbose)

@@ -1,3 +1,4 @@
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -19,7 +20,7 @@ class HealthResponse(BaseModel):
     last_run_status: str
     channels_status: dict[str, Any]
     database_size_mb: float
-    disk_space_gb: float
+    disk_free_gb: float
     logs_path: str
 
 
@@ -33,36 +34,46 @@ async def health_check(data_dir: str = "data") -> HealthResponse:
     last_run = None
     last_run_status = "no_runs"
     channels_status = {}
+    health_status = "healthy"
 
     if db_path.exists():
         try:
             store = Store(db_path)
-            runs = store.runs()
-            if runs:
-                latest = runs[-1]
-                last_run = latest["started_at"]
-                last_run_status = "success" if latest["finished_at"] else "incomplete"
-                channels_status = latest.get("channel_status", {})
-            store.close()
+            try:
+                runs = store.runs()
+                if runs:
+                    latest = runs[-1]
+                    last_run = latest["started_at"]
+                    last_run_status = "success" if latest["finished_at"] else "incomplete"
+                    channels_status = latest.get("channel_status", {})
+            finally:
+                store.close()
             db_size_mb = db_path.stat().st_size / (1024 * 1024)
         except Exception as e:
             log.error("health_check_db_error", error=str(e))
             db_size_mb = 0
+            last_run_status = "error"
+            health_status = "degraded"
     else:
         db_size_mb = 0
 
-    # Disk space
-    disk_usage = data_path.stat().st_size if data_path.exists() else 0
-    disk_space_gb = disk_usage / (1024**3)
+    # Disk capacity available to the filesystem containing the data directory.
+    path_for_usage = data_path if data_path.exists() else data_path.parent
+    try:
+        disk_free_gb = shutil.disk_usage(path_for_usage).free / (1024**3)
+    except OSError as e:
+        log.error("health_check_disk_error", error=str(e))
+        disk_free_gb = 0
+        health_status = "degraded"
 
     return HealthResponse(
-        status="healthy",
+        status=health_status,
         timestamp=datetime.now(timezone.utc).isoformat(),
         last_run=last_run,
         last_run_status=last_run_status,
         channels_status=channels_status,
         database_size_mb=round(db_size_mb, 2),
-        disk_space_gb=round(disk_space_gb, 2),
+        disk_free_gb=round(disk_free_gb, 2),
         logs_path=str(data_path / "logs"),
     )
 

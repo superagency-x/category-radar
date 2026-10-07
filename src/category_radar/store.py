@@ -182,8 +182,9 @@ class Store(Database):
         return out
 
     def reviews(self, run_id: str | None = None) -> list[dict[str, Any]]:
-        q = "SELECT * FROM reviews" + (" WHERE run_id=?" if run_id else "")
-        return [dict(r) for r in self.conn.execute(q, (run_id,) if run_id else ()).fetchall()]
+        if run_id:
+            return [dict(r) for r in self.conn.execute("SELECT * FROM reviews WHERE run_id=?", (run_id,)).fetchall()]
+        return [dict(r) for r in self.conn.execute("SELECT * FROM reviews").fetchall()]
 
     def fx(self, run_id: str) -> dict[str, float]:
         rows = self.conn.execute("SELECT currency, per_eur FROM fx_rates WHERE run_id=?", (run_id,)).fetchall()

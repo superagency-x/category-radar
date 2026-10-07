@@ -1,3 +1,4 @@
+import os
 from logging.config import fileConfig
 from pathlib import Path
 
@@ -16,7 +17,8 @@ if config.config_file_name is not None:
 
 # Add dynamic database path
 db_path = Path(__file__).parent.parent / "data" / "radar.sqlite"
-config.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
+database_url = os.environ.get("RADAR_DATABASE_URL") or f"sqlite:///{db_path}"
+config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
 
 
 def run_migrations_offline() -> None:

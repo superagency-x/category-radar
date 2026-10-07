@@ -83,7 +83,7 @@ class MediaMarktAdapter(ChannelAdapter):
                     market=market,
                     rank=rank,
                     title=title,
-                    url=urljoin(BASE, link_el["href"]),
+                    url=urljoin(BASE, str(link_el["href"])),
                     price=price,
                     currency=currency,
                     rating=rating,

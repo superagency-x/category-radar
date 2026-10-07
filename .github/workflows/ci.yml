@@ -15,22 +15,22 @@ jobs:
       
       # Linting with Ruff
       - name: Run Ruff linter
-        run: pip install ruff && ruff check src/
+        run: ruff check src/
       
       - name: Run Ruff formatter check
         run: ruff format --check src/
       
       # Security scan with Bandit
       - name: Security scan with Bandit
-        run: pip install bandit && bandit -r src/ -f json -o bandit-report.json || true
+        run: bandit -r src/
       
       # Dependency audit
       - name: Dependency audit
-        run: pip install pip-audit && pip-audit --format json --output audit-report.json || true
+        run: pip-audit
       
       # Type checking
       - name: Type check with mypy
-        run: pip install mypy && mypy src/ --ignore-missing-imports || true
+        run: mypy src/ --ignore-missing-imports
       
       # Run tests with coverage
       - name: Run tests with coverage

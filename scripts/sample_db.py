@@ -6,6 +6,7 @@
 The dashboard shows a red "synthetic sample data" banner when it renders this
 data. Real data only ever comes from `radar run`.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -22,12 +23,33 @@ from category_radar.store import Store  # noqa: E402
 from tests.conftest import FX, synthetic_raw  # noqa: E402
 
 REVIEWS = {
-    "DE": ["Sehr leise und leicht zu reinigen", "Zu laut, riecht anfangs nach Plastik", "Groß genug für die ganze Familie",
-           "Pommes werden richtig knusprig", "Nimmt viel Platz weg", "Beschichtung löst sich nach 6 Monaten"],
-    "PL": ["Głośna i trudno się czyści", "Duża pojemność, idealna dla rodziny", "Chrupiące frytki, szybko",
-           "Zapach plastiku na początku", "Prosta obsługa, dobra cena"],
-    "CZ": ["Velký objem, křupavé hranolky", "Hlučná, ale snadné čištění v myčce", "Zabírá hodně místa", "Rychlá a levná"],
-    "HU": ["Nagy kosár, családnak ideális", "Hangos, de könnyen tisztítható", "Ropogós krumpli, gyors", "Műanyag szag az elején"],
+    "DE": [
+        "Sehr leise und leicht zu reinigen",
+        "Zu laut, riecht anfangs nach Plastik",
+        "Groß genug für die ganze Familie",
+        "Pommes werden richtig knusprig",
+        "Nimmt viel Platz weg",
+        "Beschichtung löst sich nach 6 Monaten",
+    ],
+    "PL": [
+        "Głośna i trudno się czyści",
+        "Duża pojemność, idealna dla rodziny",
+        "Chrupiące frytki, szybko",
+        "Zapach plastiku na początku",
+        "Prosta obsługa, dobra cena",
+    ],
+    "CZ": [
+        "Velký objem, křupavé hranolky",
+        "Hlučná, ale snadné čištění v myčce",
+        "Zabírá hodně místa",
+        "Rychlá a levná",
+    ],
+    "HU": [
+        "Nagy kosár, családnak ideális",
+        "Hangos, de könnyen tisztítható",
+        "Ropogós krumpli, gyors",
+        "Műanyag szag az elején",
+    ],
 }
 
 
@@ -50,11 +72,29 @@ def main() -> None:
             raws = synthetic_raw(m, seed=n % 2, price_shift=1 - 0.02 * n)
             ls = norm.normalize(raws, run_id=run_id, snapshot_date=day)
             ch = raws[0].channel
-            status[ch] = {"status": "ok", "listings": store.replace_listings(run_id, ch, ls), "pages": 1, "via": "sample", "market": m}
-        store.replace_reviews(run_id, [
-            Review(channel="x", market=m, model_key="x", brand="x", rating=(5 if i % 2 == 0 else 2), text=t, language=cfg.language_of(m))
-            for m, texts in REVIEWS.items() for i, t in enumerate(texts)
-        ])
+            status[ch] = {
+                "status": "ok",
+                "listings": store.replace_listings(run_id, ch, ls),
+                "pages": 1,
+                "via": "sample",
+                "market": m,
+            }
+        store.replace_reviews(
+            run_id,
+            [
+                Review(
+                    channel="x",
+                    market=m,
+                    model_key="x",
+                    brand="x",
+                    rating=(5 if i % 2 == 0 else 2),
+                    text=t,
+                    language=cfg.language_of(m),
+                )
+                for m, texts in REVIEWS.items()
+                for i, t in enumerate(texts)
+            ],
+        )
         store.save_fx(run_id, day, FX)
         store.finish_run(run_id, f"{day}T09:10:00+02:00", "sample", status)
     store.close()

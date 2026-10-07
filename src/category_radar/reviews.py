@@ -69,7 +69,9 @@ def extract_reviews(html: str, limit: int = 50) -> list[tuple[float | None, str]
                 rating = None
                 if rv is not None:
                     try:
-                        rating = float((rv.get("content") or rv.get_text()).replace(",", "."))
+                        val = rv.get("content")
+                        raw_txt = val if isinstance(val, str) else rv.get_text()
+                        rating = float(raw_txt.replace(",", "."))
                     except ValueError:
                         rating = None
                 if len(txt) > 15:

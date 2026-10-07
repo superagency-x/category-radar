@@ -107,7 +107,8 @@ def price_analysis(rows: list[dict], history: list[dict], cfg: CategoryConfig) -
     # brand price index per market
     brand_index: dict[str, dict[str, float]] = defaultdict(dict)
     for m, items in _by(rows, "market").items():
-        mkt_med = markets[m]["median_eur"]
+        med_val = markets[m].get("median_eur")
+        mkt_med = float(str(med_val)) if med_val is not None else None
         for brand, b_items in _by(items, "brand").items():
             b_med = _median(r["price_eur"] for r in b_items)
             if mkt_med and b_med and len(b_items) >= 2:
@@ -129,8 +130,8 @@ def price_analysis(rows: list[dict], history: list[dict], cfg: CategoryConfig) -
                     "brand": items[0]["brand"],
                     "prices_eur": per_m,
                     "spread_pct": round(100 * (hi - lo) / lo, 1) if lo else None,
-                    "cheapest": min(per_m, key=per_m.get),
-                    "dearest": max(per_m, key=per_m.get),
+                    "cheapest": min(per_m, key=lambda k: per_m[k]),
+                    "dearest": max(per_m, key=lambda k: per_m[k]),
                 }
             )
     cross.sort(key=lambda c: -(c["spread_pct"] or 0))
@@ -279,7 +280,7 @@ def landscape(rows: list[dict]) -> dict[str, Any]:
             }
             for b, ms in presence.items()
         ),
-        key=lambda x: (-x["n"], x["brand"]),
+        key=lambda x: (-int(str(x["n"])), str(x["brand"])),
     )
     return {"markets": markets, "footprint": footprint}
 
@@ -333,27 +334,38 @@ def positioning(rows: list[dict], cfg: CategoryConfig, land: dict[str, Any], pri
 
 
 # ------------------------------------------------------------------ needs
+def feature_lift(rows: list[dict], claims: dict[str, Any]) -> list[dict]:
+    """Calculate feature lift comparing top-20 vs full shelf."""
+    if not claims or not rows:
+        return []
+    top = [r for r in rows if (r.get("rank") or 999) <= TOP_N]
+    out = []
+    for k, v in claims.items():
+        label = v.get("label", k) if isinstance(v, dict) else str(v)
+        share_all = _pct(sum(1 for r in rows if k in r.get("claims", [])), len(rows))
+        share_top = _pct(sum(1 for r in top if k in r.get("claims", [])), len(top))
+        lift_val = round(share_top / share_all, 2) if share_all else None
+        out.append(
+            {
+                "claim": k,
+                "claim_id": k,
+                "label": label,
+                "share_all": share_all,
+                "share_top20": share_top,
+                "top_pct": share_top,
+                "lift": lift_val,
+            }
+        )
+    return sorted(out, key=lambda x: -(x["lift"] or 0))
+
+
 def market_needs(rows: list[dict], reviews: list[dict], cfg: CategoryConfig) -> dict[str, Any]:
-    claim_labels = {k: v["label"] for k, v in cfg.claims.items()}
     # 1) revealed preference: which features does the shelf reward?
     lift: dict[str, list[dict]] = {}
     capacity: dict[str, dict[str, Any]] = {}
     for m, items in _by(rows, "market").items():
         top = [r for r in items if r["rank"] <= TOP_N]
-        out = []
-        for k, label in claim_labels.items():
-            share_all = _pct(sum(1 for r in items if k in r["claims"]), len(items))
-            share_top = _pct(sum(1 for r in top if k in r["claims"]), len(top))
-            out.append(
-                {
-                    "claim": k,
-                    "label": label,
-                    "share_all": share_all,
-                    "share_top20": share_top,
-                    "lift": round(share_top / share_all, 2) if share_all else None,
-                }
-            )
-        lift[m] = sorted(out, key=lambda x: -(x["lift"] or 0))
+        lift[m] = feature_lift(items, cfg.claims)
         caps_top = sorted(r["capacity_l"] for r in top if r["capacity_l"])
         caps_all = sorted(r["capacity_l"] for r in items if r["capacity_l"])
         capacity[m] = {
@@ -444,7 +456,7 @@ def promotional_intensity(rows: list[dict]) -> dict[str, Any]:
                     "max_discount_pct": max(discs),
                 }
             )
-        brand_stats.sort(key=lambda x: -x["avg_discount_pct"])
+        brand_stats.sort(key=lambda x: -float(str(x["avg_discount_pct"])))
 
         all_discs = [d for discs in brand_deals.values() for d in discs]
         by_mkt[m] = {
@@ -454,7 +466,7 @@ def promotional_intensity(rows: list[dict]) -> dict[str, Any]:
             "brands": brand_stats,
         }
 
-    top_deals.sort(key=lambda d: -d["discount_depth_pct"])
+    top_deals.sort(key=lambda d: -float(str(d["discount_depth_pct"])))
     return {
         "markets": by_mkt,
         "top_deals": top_deals[:25],
@@ -559,7 +571,7 @@ def key_insights(
         )
     meds = {m: v["median_eur"] for m, v in price["markets"].items() if v["median_eur"]}
     if len(meds) >= 2:
-        lo, hi = min(meds, key=meds.get), max(meds, key=meds.get)
+        lo, hi = min(meds, key=lambda k: meds[k]), max(meds, key=lambda k: meds[k])
         out.append(
             {
                 "market": "ALL",

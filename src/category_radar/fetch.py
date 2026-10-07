@@ -17,6 +17,7 @@ import time
 import urllib.robotparser
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
@@ -111,8 +112,8 @@ class Fetcher:
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             },
         )
-        self._browser = None  # lazily started Playwright browser
-        self._pw = None
+        self._browser: Any = None  # lazily started Playwright browser
+        self._pw: Any = None
 
     # -- politeness -------------------------------------------------------
     def _throttle(self, host: str) -> None:

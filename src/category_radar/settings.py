@@ -13,7 +13,10 @@ class Settings(BaseSettings):
 
     user_agent: str | None = None
     slack_webhook_url: str | None = None
+    alert_webhook_url: str | None = None
     ecb_api_key: str | None = None
+    supabase_url: str | None = None
+    database_url: str | None = None
 
 
 settings = Settings()

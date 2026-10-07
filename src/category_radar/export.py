@@ -112,8 +112,8 @@ def write_csvs(bundle: dict[str, Any], export_dir: Path) -> list[Path]:
         paths.append(p)
     p = export_dir / f"brands_{bundle['meta']['snapshot_date']}.csv"
     with p.open("w", newline="", encoding="utf-8") as f:
-        w = csv.writer(f)
-        w.writerow(
+        writer = csv.writer(f)
+        writer.writerow(
             [
                 "market",
                 "brand",
@@ -129,7 +129,7 @@ def write_csvs(bundle: dict[str, Any], export_dir: Path) -> list[Path]:
         )
         for m, d in bundle["insights"]["landscape"]["markets"].items():
             for b in d["brands"]:
-                w.writerow(
+                writer.writerow(
                     [
                         m,
                         b["brand"],

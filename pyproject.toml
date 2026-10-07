@@ -21,6 +21,9 @@ dependencies = [
   "pydantic-settings>=2.5.0",
   "alembic>=1.13.0",
   "sqlalchemy>=2.0.0",
+  "psycopg[binary]>=3.2.0",
+  "PyJWT[crypto]>=2.10.0",
+  "defusedxml>=0.7.1",
 ]
 
 [project.optional-dependencies]
@@ -60,4 +63,3 @@ target-version = "py310"
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
 ignore = ["E501", "E741"]
-

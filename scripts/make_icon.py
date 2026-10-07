@@ -1,4 +1,5 @@
 """Generate high-resolution Category Radar macOS AppIcon.icns using Playwright, sips, and iconutil."""
+
 import asyncio
 import shutil
 import subprocess
@@ -129,6 +130,7 @@ SVG_CONTENT = """
 </svg>
 """
 
+
 async def build_icns(out_icns: Path):
     temp_dir = Path("data/_icon_build")
     if temp_dir.exists():
@@ -163,14 +165,16 @@ async def build_icns(out_icns: Path):
 
     for name, sz in sizes:
         dst = iconset / name
-        subprocess.run(["sips", "-z", str(sz), str(sz), str(png_1024), "--out", str(dst)],
-                       check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(
+            ["sips", "-z", str(sz), str(sz), str(png_1024), "--out", str(dst)], check=True, stdout=subprocess.DEVNULL
+        )
 
     # 3. Compile iconutil
     out_icns.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(["iconutil", "-c", "icns", str(iconset), "-o", str(out_icns)], check=True)
     shutil.rmtree(temp_dir)
     print(f"Generated {out_icns} ({out_icns.stat().st_size} bytes)")
+
 
 if __name__ == "__main__":
     out_path = Path("assets/AppIcon.icns")

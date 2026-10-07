@@ -159,8 +159,8 @@ class Normalizer:
     def normalize(self, raws: Iterable[RawListing], *, run_id: str, snapshot_date: str) -> list[Listing]:
         out: list[Listing] = []
         for r in raws:
-            ch = self.cfg.channels[r.channel]
-            if not self.in_category(ch, r):
+            ch = self.cfg.channels.get(r.channel) if self.cfg else None
+            if ch and not self.in_category(ch, r):
                 continue
             brand = self.brand(r.title, r.brand_hint)
             claims = self.claims_of(r)
@@ -177,7 +177,7 @@ class Normalizer:
                     run_id=run_id,
                     snapshot_date=snapshot_date,
                     channel=r.channel,
-                    channel_type=ch.type,
+                    channel_type=ch.type if ch else "unknown",
                     market=r.market,
                     rank=r.rank,
                     title=r.title,

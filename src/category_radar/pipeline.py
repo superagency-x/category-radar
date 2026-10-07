@@ -277,7 +277,13 @@ async def scrape_channel_async(
     return listings, status
 
 
-async def run_pipeline_async(cfg: CategoryConfig, data_dir: Path, *, channels: list[str] | None = None) -> RunReport:
+async def run_pipeline_async(
+    cfg: CategoryConfig,
+    data_dir: Path,
+    *,
+    channels: list[str] | None = None,
+    offline_raw_dir: Path | None = None,
+) -> RunReport:
     """Async pipeline with concurrent channel scraping."""
     import asyncio
 
@@ -289,7 +295,7 @@ async def run_pipeline_async(cfg: CategoryConfig, data_dir: Path, *, channels: l
     correlation_id = str(uuid.uuid4())
     log_bound = get_logger(__name__).bind(correlation_id=correlation_id, run_id=run_id)
     snapshot_date = started.date().isoformat()
-    raw_dir = data_dir / "raw" / snapshot_date
+    raw_dir = offline_raw_dir or (data_dir / "raw" / snapshot_date)
     store = Store(data_dir / "radar.sqlite")
     store.start_run(run_id, snapshot_date, started.isoformat(), cfg.id)
     report = RunReport(run_id=run_id, snapshot_date=snapshot_date)
@@ -314,7 +320,10 @@ async def run_pipeline_async(cfg: CategoryConfig, data_dir: Path, *, channels: l
 
         async def _scrape_and_store(cid: str) -> None:
             log_bound.info("channel_start", channel=cid)
-            raws, status = await scrape_channel_async(cfg, cid, fetcher, raw_dir)
+            if offline_raw_dir:
+                raws, status = parse_cached(cfg, cid, raw_dir)
+            else:
+                raws, status = await scrape_channel_async(cfg, cid, fetcher, raw_dir)
             listings = normalizer.normalize(raws, run_id=run_id, snapshot_date=snapshot_date)
             status["listings"] = store.replace_listings(run_id, cid, listings)
             report.channel_status[cid] = status
