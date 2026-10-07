@@ -639,6 +639,230 @@ def key_insights(
     return out
 
 
+def seasonality_analysis(history: list[dict]) -> dict[str, Any]:
+    """Analyze price trends by month to detect seasonality patterns."""
+    monthly_data = defaultdict(list)
+
+    for r in history:
+        if r.get("price_eur") and r.get("rank", 999) <= TOP_N:
+            month = r["snapshot_date"][5:7]  # Extract MM from YYYY-MM-DD
+            monthly_data[month].append(r["price_eur"])
+
+    monthly_stats = {}
+    for month, prices in sorted(monthly_data.items()):
+        if prices:
+            monthly_stats[month] = {
+                "median": round(st.median(prices), 2),
+                "mean": round(st.mean(prices), 2),
+                "min": round(min(prices), 2),
+                "max": round(max(prices), 2),
+                "count": len(prices),
+            }
+
+    # Detect seasonal patterns
+    if len(monthly_stats) >= 3:
+        months = sorted(monthly_stats.keys())
+        medians = [monthly_stats[m]["median"] for m in months]
+
+        # Simple seasonality: is there a clear peak/trough?
+        peak_month = months[medians.index(max(medians))]
+        trough_month = months[medians.index(min(medians))]
+        seasonal_range = max(medians) - min(medians)
+        avg_price = st.mean(medians)
+        seasonality_strength = round(seasonal_range / avg_price * 100, 1) if avg_price else 0
+    else:
+        peak_month = None
+        trough_month = None
+        seasonality_strength = 0
+
+    return {
+        "monthly": monthly_stats,
+        "peak_month": peak_month,
+        "trough_month": trough_month,
+        "seasonality_strength_pct": seasonality_strength,
+        "interpretation": (
+            f"Strong seasonality ({seasonality_strength}% range) with peak in {peak_month}"
+            if seasonality_strength > 10
+            else "Moderate seasonality"
+            if seasonality_strength > 5
+            else "Weak seasonality - prices stable year-round"
+        ),
+    }
+
+
+def cross_elasticity(history: list[dict]) -> dict[str, Any]:
+    """Analyze how price changes affect rank (price elasticity)."""
+    dates = sorted({r["snapshot_date"] for r in history})
+    if len(dates) < 2:
+        return {"elasticity_by_brand": {}, "note": "Insufficient history"}
+
+    prev_d, last_d = dates[-2], dates[-1]
+    prev = {(r["market"], r["model_key"]): r for r in history if r["snapshot_date"] == prev_d}
+
+    elasticity_data = []
+
+    for r in history:
+        if r["snapshot_date"] != last_d:
+            continue
+
+        p = prev.get((r["market"], r["model_key"]))
+        if not p or not p.get("price_local") or not r.get("price_local"):
+            continue
+
+        price_change_pct = 100 * (r["price_local"] - p["price_local"]) / p["price_local"]
+        rank_change = p["rank"] - r["rank"]  # Positive = rank improved (lower number)
+
+        if price_change_pct != 0:
+            elasticity = rank_change / price_change_pct
+            elasticity_data.append(
+                {
+                    "brand": r["brand"],
+                    "model_key": r["model_key"],
+                    "market": r["market"],
+                    "price_change_pct": round(price_change_pct, 1),
+                    "rank_change": rank_change,
+                    "elasticity": round(elasticity, 3),
+                }
+            )
+
+    # Aggregate by brand
+    by_brand = defaultdict(list)
+    for e in elasticity_data:
+        by_brand[e["brand"]].append(e)
+
+    brand_elasticity = {}
+    for brand, items in by_brand.items():
+        avg_elasticity = st.mean([e["elasticity"] for e in items])
+        brand_elasticity[brand] = {
+            "avg_elasticity": round(avg_elasticity, 3),
+            "sample_size": len(items),
+            "interpretation": (
+                "Highly elastic - price sensitive"
+                if avg_elasticity > 0.5
+                else "Moderately elastic"
+                if avg_elasticity > 0.1
+                else "Inelastic - price insensitive"
+                if avg_elasticity > -0.1
+                else "Counter-intuitive (lower price = worse rank)"
+            ),
+        }
+
+    return {
+        "elasticity_by_brand": brand_elasticity,
+        "top_elastic": sorted(elasticity_data, key=lambda x: -x["elasticity"])[:10],
+    }
+
+
+def detect_outliers(rows: list[dict]) -> dict[str, Any]:
+    """Detect unusual price movements and anomalies."""
+    outliers = []
+
+    for market, items in _by(rows, "market").items():
+        prices = [r["price_eur"] for r in items if r.get("price_eur")]
+        if len(prices) < 5:
+            continue
+
+        prices_sorted = sorted(prices)
+        q1 = percentile(prices_sorted, 25)
+        q3 = percentile(prices_sorted, 75)
+        iqr = q3 - q1 if (q1 is not None and q3 is not None) else 0
+        lower_bound = q1 - 1.5 * iqr if iqr and q1 is not None else (q1 * 0.5 if q1 is not None else 0)
+        upper_bound = q3 + 1.5 * iqr if iqr and q3 is not None else (q3 * 1.5 if q3 is not None else 1000)
+
+        for r in items:
+            if r.get("price_eur"):
+                if r["price_eur"] < lower_bound:
+                    outliers.append(
+                        {
+                            "brand": r["brand"],
+                            "title": r["title"],
+                            "market": market,
+                            "price_eur": r["price_eur"],
+                            "type": "price_undercut",
+                            "severity": "extreme" if r["price_eur"] < lower_bound * 0.5 else "moderate",
+                        }
+                    )
+                elif r["price_eur"] > upper_bound:
+                    outliers.append(
+                        {
+                            "brand": r["brand"],
+                            "title": r["title"],
+                            "market": market,
+                            "price_eur": r["price_eur"],
+                            "type": "price_premium",
+                            "severity": "extreme" if r["price_eur"] > upper_bound * 1.5 else "moderate",
+                        }
+                    )
+
+    return {
+        "outliers": sorted(outliers, key=lambda x: x["price_eur"])[:20],
+        "count": len(outliers),
+    }
+
+
+def brand_velocity(history: list[dict]) -> dict[str, Any]:
+    """Track brand momentum: new entrants, declining brands, rising stars."""
+    dates = sorted({r["snapshot_date"] for r in history})
+    if len(dates) < 2:
+        return {"velocity": {}, "note": "Insufficient history"}
+
+    first_d, last_d = dates[0], dates[-1]
+
+    first_run = {r["brand"]: r for r in history if r["snapshot_date"] == first_d}
+    last_run = {r["brand"]: r for r in history if r["snapshot_date"] == last_d}
+
+    velocity = {}
+
+    # New entrants
+    new_brands = set(last_run.keys()) - set(first_run.keys())
+    for brand in new_brands:
+        velocity[brand] = {
+            "status": "new_entrant",
+            "first_seen": last_d,
+            "listings": len([r for r in history if r["brand"] == brand and r["snapshot_date"] == last_d]),
+        }
+
+    # Declining brands (disappeared)
+    departed_brands = set(first_run.keys()) - set(last_run.keys())
+    for brand in departed_brands:
+        velocity[brand] = {
+            "status": "departed",
+            "last_seen": last_d,
+            "listings_at_departure": len([r for r in history if r["brand"] == brand and r["snapshot_date"] == first_d]),
+        }
+
+    # Rising stars (improved visibility)
+    for brand in set(first_run.keys()) & set(last_run.keys()):
+        first_items = [r for r in history if r["brand"] == brand and r["snapshot_date"] == first_d]
+        last_items = [r for r in history if r["brand"] == brand and r["snapshot_date"] == last_d]
+
+        first_vis = sum(visibility_weight(r["rank"]) for r in first_items)
+        last_vis = sum(visibility_weight(r["rank"]) for r in last_items)
+
+        if first_vis > 0 and last_vis > first_vis * 1.2:  # 20% growth
+            velocity[brand] = {
+                "status": "rising_star",
+                "visibility_change_pct": round(100 * (last_vis - first_vis) / first_vis, 1),
+                "current_listings": len(last_items),
+            }
+        elif first_vis > 0 and last_vis < first_vis * 0.8:  # 20% decline
+            velocity[brand] = {
+                "status": "declining",
+                "visibility_change_pct": round(100 * (last_vis - first_vis) / first_vis, 1),
+                "current_listings": len(last_items),
+            }
+
+    return {
+        "velocity": velocity,
+        "summary": {
+            "new_entrants": len(new_brands),
+            "departed": len(departed_brands),
+            "rising_stars": len([v for v in velocity.values() if v["status"] == "rising_star"]),
+            "declining": len([v for v in velocity.values() if v["status"] == "declining"]),
+        },
+    }
+
+
 # ------------------------------------------------------------------ entry
 def analyse(latest: list[dict], history: list[dict], reviews: list[dict], cfg: CategoryConfig) -> dict[str, Any]:
     rows = dedupe_variants(latest)
@@ -650,6 +874,10 @@ def analyse(latest: list[dict], history: list[dict], reviews: list[dict], cfg: C
     promos = promotional_intensity(latest)
     editorial = editorial_testing(latest)
     omnichannel = omnichannel_comparison(latest)
+    seasonality = seasonality_analysis(history)
+    elasticity = cross_elasticity(history)
+    outliers = detect_outliers(rows)
+    velocity = brand_velocity(history)
     return {
         "price": price,
         "landscape": land,
@@ -658,12 +886,16 @@ def analyse(latest: list[dict], history: list[dict], reviews: list[dict], cfg: C
         "promotions": promos,
         "editorial": editorial,
         "omnichannel": omnichannel,
+        "seasonality": seasonality,
+        "cross_elasticity": elasticity,
+        "outliers": outliers,
+        "brand_velocity": velocity,
         "insights": key_insights(price, land, pos, needs, promos, editorial, cfg),
     }
 
 
 def dedupe_variants_by_date(history: list[dict]) -> list[dict]:
     out = []
-    for _, day in _by(history, "snapshot_date").items():
+    for day in _by(history, "snapshot_date").values():
         out += dedupe_variants(day)
     return out

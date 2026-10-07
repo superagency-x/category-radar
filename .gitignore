@@ -16,3 +16,4 @@ data/logs/
 .env.local
 .coverage
 htmlcov/
+site_docs/

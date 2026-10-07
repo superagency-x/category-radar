@@ -33,6 +33,11 @@ dev = [
   "bandit>=1.7.0",
   "pip-audit>=2.7.0",
 ]
+docs = [
+  "mkdocs>=1.6.0",
+  "mkdocs-material>=9.5.0",
+  "mkdocstrings[python]>=0.25.0",
+]
 
 [project.scripts]
 radar = "category_radar.cli:main"
