@@ -208,6 +208,17 @@ def cmd_health(args, cfg) -> int:
     return 0
 
 
+def cmd_migrate(args, cfg) -> int:
+    """Run database migrations."""
+    import subprocess
+    import sys
+
+    alembic_bin = Path(sys.executable).parent / "alembic"
+    cmd = [str(alembic_bin) if alembic_bin.exists() else "alembic", "upgrade", "head"]
+    result = subprocess.run(cmd, cwd=Path.cwd())
+    return result.returncode
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="radar", description="Category Radar: Central European category intelligence")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -255,6 +266,10 @@ def main(argv: list[str] | None = None) -> int:
     _common(p)
     p.add_argument("--port", type=int, default=8765)
     p.set_defaults(func=cmd_health)
+
+    p = sub.add_parser("migrate", help="run database migrations")
+    _common(p)
+    p.set_defaults(func=cmd_migrate)
 
     args = parser.parse_args(argv)
     configure_logging(Path(args.data_dir), args.verbose)

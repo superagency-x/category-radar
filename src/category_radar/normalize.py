@@ -64,14 +64,18 @@ def slug(s: str) -> str:
 
 
 class Normalizer:
-    def __init__(self, cfg: CategoryConfig, fx_to_eur: dict[str, float]):
+    def __init__(self, cfg: CategoryConfig | None, fx_to_eur: dict[str, float]):
         self.cfg = cfg
         self.fx = fx_to_eur  # units of currency per 1 EUR (ECB convention)
-        self._brand_patterns = [
-            (canon, re.compile(r"\b(" + "|".join(re.escape(a) for a in aliases) + r")\b", re.IGNORECASE))
-            for canon, aliases in sorted(cfg.brands.items(), key=lambda kv: -max(len(a) for a in kv[1]))
-        ]
-        self._claims = {k: re.compile(v["pattern"], re.IGNORECASE) for k, v in cfg.claims.items()}
+        if cfg:
+            self._brand_patterns = [
+                (canon, re.compile(r"\b(" + "|".join(re.escape(a) for a in aliases) + r")\b", re.IGNORECASE))
+                for canon, aliases in sorted(cfg.brands.items(), key=lambda kv: -max(len(a) for a in kv[1]))
+            ]
+            self._claims = {k: re.compile(v["pattern"], re.IGNORECASE) for k, v in cfg.claims.items()}
+        else:
+            self._brand_patterns = []
+            self._claims = {}
 
     # -- fields ------------------------------------------------------------
     def brand(self, title: str, hint: str | None) -> str:
@@ -111,7 +115,7 @@ class Normalizer:
         for t in texts:
             if not t:
                 continue
-            m = re.search(r"(\d{1,2}(?:[.,]\d{1,2})?)\s*(?:l|L|litr|liter|litrů|literes)\b", t)
+            m = re.search(r"(\d{1,2}(?:[.,]\d{1,2})?)\s*(?:l|litr|liter|litrů|literes)\b", t, re.IGNORECASE)
             if m:
                 val = float(m.group(1).replace(",", "."))
                 if 0.5 <= val <= 40:
@@ -123,7 +127,8 @@ class Normalizer:
         for t in texts:
             if not t:
                 continue
-            m = re.search(r"(\d{3,4})\s*W\b", t)
+            cleaned = re.sub(r"(\d)\s+(\d)", r"\1\2", t)
+            m = re.search(r"(\d{3,4})\s*W\b", cleaned, re.IGNORECASE)
             if m and 500 <= int(m.group(1)) <= 4000:
                 return int(m.group(1))
         return None

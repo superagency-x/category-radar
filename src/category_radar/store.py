@@ -15,6 +15,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from .database import Database
 from .models import Listing, Review
 
 SCHEMA = """
@@ -74,7 +75,7 @@ CREATE TABLE IF NOT EXISTS fx_rates (
 """
 
 
-class Store:
+class Store(Database):
     def __init__(self, path: str | Path):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)

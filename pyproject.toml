@@ -19,6 +19,8 @@ dependencies = [
   "uvicorn>=0.32.0",
   "pydantic>=2.9.0",
   "pydantic-settings>=2.5.0",
+  "alembic>=1.13.0",
+  "sqlalchemy>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -41,6 +43,10 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+addopts = "--cov=category_radar --cov-report=html --cov-report=term-missing --cov-fail-under=60"
+markers = [
+  "integration: marks integration tests",
+]
 
 [tool.ruff]
 line-length = 120
